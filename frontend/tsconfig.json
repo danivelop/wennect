@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "es6",
+    "module": "es6",
+    "jsx": "react",
+    "esModuleInterop": true,
+    "moduleResolution": "node",
+    "isolatedModules": true,
+    "strict": true,
+    "sourceMap": true,
+    "resolveJsonModule": true,
+    "noEmit": true,
+    "baseUrl": "./",
+    "allowSyntheticDefaultImports": true,
+    "lib": [
+      "dom",
+      "es2022",
+    ],
+    "paths": {
+      "@/*": ["src/*"],
+    },
+  },
+  "include": ["./src/**/*"],
+  "exclude": ["node_modules", "build"]
+}
