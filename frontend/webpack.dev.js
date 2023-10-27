@@ -12,7 +12,7 @@ module.exports = merge(common, {
   devServer: {
     static: path.join(__dirname, 'dist'),
     compress: true,
-    port: 8000,
+    port: 3000,
   },
   mode: 'development',
 })
