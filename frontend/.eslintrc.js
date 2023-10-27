@@ -26,8 +26,35 @@ module.exports = {
   },
   rules: {
     'react/jsx-filename-extension': [
-      1,
+      'warn',
       { extensions: ['.js', '.jsx', '.ts', '.tsx'] },
+    ],
+    'import/order': [
+      'error',
+      {
+        'newlines-between': 'always',
+        alphabetize: { order: 'asc' },
+        groups: [
+          'external',
+          'builtin',
+          'internal',
+          ['sibling', 'parent', 'index'],
+          'type',
+          'unknown',
+        ],
+        pathGroups: [
+          {
+            pattern: '{react*,react*/**}',
+            group: 'external',
+            position: 'before',
+          },
+          {
+            pattern: '@/{services,modules}/**',
+            group: 'internal',
+            position: 'before',
+          },
+        ],
+      },
     ],
     'import/extensions': [
       'error',
