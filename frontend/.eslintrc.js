@@ -5,8 +5,9 @@ module.exports = {
     'plugin:@typescript-eslint/recommended',
     'plugin:prettier/recommended',
     'plugin:react/recommended',
+    'plugin:typescript-sort-keys/recommended',
   ],
-  plugins: ['react', '@typescript-eslint', 'prettier'],
+  plugins: ['react', '@typescript-eslint', 'prettier', 'typescript-sort-keys'],
   settings: {
     react: {
       version: 'detect',
@@ -67,5 +68,7 @@ module.exports = {
       },
     ],
     'prettier/prettier': 'error',
+    'typescript-sort-keys/interface': 'warn',
+    'typescript-sort-keys/string-enum': 'warn',
   },
 }
