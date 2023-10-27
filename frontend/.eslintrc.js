@@ -15,6 +15,9 @@ module.exports = {
       node: {
         extensions: ['.js', '.jsx', '.ts', '.tsx'],
       },
+      typescript: {
+        project: 'frontend/tsconfig.json',
+      },
     },
   },
   env: {
