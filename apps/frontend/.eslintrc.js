@@ -15,9 +15,10 @@ module.exports = {
     'import/resolver': {
       node: {
         extensions: ['.js', '.jsx', '.ts', '.tsx'],
+        paths: ['src'],
       },
       typescript: {
-        project: 'frontend/tsconfig.json',
+        project: 'apps/frontend/tsconfig.json',
       },
     },
   },

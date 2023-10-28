@@ -1,12 +1,15 @@
 {
-  "name": "frontend",
+  "name": "wennect-frontend",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "index.tsx",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "NODE_ENV=development webpack serve --config webpack.dev.js",
     "build": "NODE_ENV=production webpack --config webpack.prod.js",
+    "pre-commit": "sh .husky/pre-commit",
+    "typecheck": "tsc --noEmit",
+    "lint-staged": "lint-staged",
     "find-unused-deps": "depcheck",
     "find-deadcode": "ts-prune"
   },
@@ -40,6 +43,7 @@
     "eslint-plugin-typescript-sort-keys": "^3.1.0",
     "file-loader": "^6.2.0",
     "html-webpack-plugin": "^5.5.3",
+    "lint-staged": "^15.0.2",
     "prettier": "^3.0.3",
     "ts-prune": "^0.10.3",
     "typescript": "^5.2.2",

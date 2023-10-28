@@ -1,7 +1,0 @@
-ignores: [
-  'babel-loader',
-  'file-loader',
-  'url-loader',
-  'webpack-cli',
-  'webpack-dev-server',
-]

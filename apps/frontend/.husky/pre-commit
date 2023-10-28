@@ -1,0 +1,4 @@
+pnpm run typecheck
+pnpm run lint-staged
+pnpm run find-unused-deps
+pnpm run find-deadcode
