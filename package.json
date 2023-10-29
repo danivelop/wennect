@@ -5,6 +5,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "preinstall": "npx only-allow pnpm",
+    "prepare": "husky install",
     "frontend": "pnpm run --filter wennect-frontend"
   },
   "keywords": [],
