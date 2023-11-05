@@ -51,6 +51,9 @@ importers:
       '@types/hpp':
         specifier: ^0.2.4
         version: 0.2.4
+      '@types/module-alias':
+        specifier: ^2.0.3
+        version: 2.0.3
       '@types/morgan':
         specifier: ^1.9.7
         version: 1.9.7
@@ -1798,6 +1801,10 @@ packages:
 
   /@types/minimatch@3.0.5:
     resolution: {integrity: sha512-Klz949h02Gz2uZCMGwDUSDS1YBlTdDDgbWHi+81l29tQALUtvz4rAYi5uoVhE5Lagoq6DeqAUlbrHvW/mXDgdQ==}
+    dev: true
+
+  /@types/module-alias@2.0.3:
+    resolution: {integrity: sha512-P4nKOHbLwvzpPWA5rqJXEAvkIePPb4fNMaEzVU3qZp53NEg2buF9KaudA7BfduUd0b/M1+cM9w050WJ+sDHktw==}
     dev: true
 
   /@types/morgan@1.9.7:

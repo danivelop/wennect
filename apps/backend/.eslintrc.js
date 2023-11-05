@@ -63,5 +63,6 @@ module.exports = {
     'typescript-sort-keys/string-enum': 'warn',
     'no-console': 'off',
     'import/prefer-default-export': 'off',
+    'import/no-extraneous-dependencies': 'off',
   },
 }

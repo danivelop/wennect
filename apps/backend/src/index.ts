@@ -1,14 +1,15 @@
 import 'module-alias/register'
 
+import cookieParser from 'cookie-parser'
+import cors from 'cors'
 import express, { Request, Response, NextFunction } from 'express'
+import helmet from 'helmet'
+import hpp from 'hpp'
+import morgan from 'morgan'
+
 import fs from 'fs'
 import https from 'https'
 import path from 'path'
-import cookieParser from 'cookie-parser'
-import morgan from 'morgan'
-import helmet from 'helmet'
-import hpp from 'hpp'
-import cors from 'cors'
 
 import logger from '@/logger'
 import HttpError from '@/models/HttpError'
@@ -51,6 +52,7 @@ async function runServer() {
   })
 
   app.use(
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     (error: HttpError, req: Request, res: Response, next: NextFunction) => {
       logger.error(error.message)
       return res.status(error.status || 500).send({
