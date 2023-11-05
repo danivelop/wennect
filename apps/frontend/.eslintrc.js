@@ -71,5 +71,14 @@ module.exports = {
     'prettier/prettier': 'error',
     'typescript-sort-keys/interface': 'warn',
     'typescript-sort-keys/string-enum': 'warn',
+    'no-console': 'off',
   },
+  overrides: [
+    {
+      files: ['src/**/*'],
+      rules: {
+        'no-console': 'warn',
+      },
+    },
+  ],
 }

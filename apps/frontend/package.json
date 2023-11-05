@@ -11,7 +11,7 @@
     "typecheck": "tsc --noEmit",
     "lint-staged": "lint-staged",
     "find-unused-deps": "depcheck",
-    "find-deadcode": "ts-prune"
+    "find-deadcode": "ts-prune -e"
   },
   "keywords": [],
   "author": "danivelop",
