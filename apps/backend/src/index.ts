@@ -11,6 +11,8 @@ import fs from 'fs'
 import https from 'https'
 import path from 'path'
 
+import SocketService from '@/services/SocketService'
+
 import logger from '@/logger'
 import HttpError from '@/models/HttpError'
 
@@ -64,6 +66,9 @@ async function runServer() {
   server.listen(port, () => {
     console.log(`Server is running at http://localhost:${port}`)
   })
+
+  const socketService = new SocketService(server)
+  socketService.initialize()
 }
 
 runServer()
