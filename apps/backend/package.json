@@ -4,9 +4,43 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "NODE_ENV=development nodemon",
+    "build": "tsc",
+    "pre-commit": "sh .husky/pre-commit",
+    "typecheck": "tsc --noEmit",
+    "lint-staged": "lint-staged",
+    "find-unused-deps": "depcheck",
+    "find-deadcode": "ts-prune -e"
   },
   "keywords": [],
   "author": "danivelop",
-  "license": "ISC"
+  "license": "ISC",
+  "engines": {
+    "node": "18.17.1",
+    "pnpm": "8.7.0"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.20",
+    "@types/node": "^20.8.10",
+    "@typescript-eslint/eslint-plugin": "^6.8.0",
+    "@typescript-eslint/parser": "^6.8.0",
+    "depcheck": "^1.4.7",
+    "eslint": "^8.51.0",
+    "eslint-config-airbnb-base": "^15.0.0",
+    "eslint-config-prettier": "^9.0.0",
+    "eslint-import-resolver-typescript": "^3.6.1",
+    "eslint-plugin-import": "^2.28.1",
+    "eslint-plugin-prettier": "^5.0.1",
+    "eslint-plugin-typescript-sort-keys": "^3.1.0",
+    "lint-staged": "^15.0.2",
+    "nodemon": "^3.0.1",
+    "prettier": "^3.0.3",
+    "ts-node": "^10.9.1",
+    "ts-prune": "^0.10.3",
+    "typescript": "^5.2.2"
+  }
 }
