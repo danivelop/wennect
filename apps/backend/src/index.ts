@@ -1,5 +1,3 @@
-import 'module-alias/register'
-
 import cookieParser from 'cookie-parser'
 import cors from 'cors'
 import express, { Request, Response, NextFunction } from 'express'
