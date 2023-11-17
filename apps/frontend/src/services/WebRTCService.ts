@@ -1,45 +1,45 @@
-import { EMPTY, of, NEVER, concat } from 'rxjs'
-import { map, tap, switchMap, finalize } from 'rxjs/operators'
+import { BehaviorSubject, of, NEVER, concat } from 'rxjs'
+import { map, tap, switchMap, finalize, take } from 'rxjs/operators'
 
 import LocalParticipant from '@/models/LocalParticipant'
 
 import type { MediaStreamType } from '@/constants/MediaStream'
 
 class WebRTCService {
-  localParticipant: LocalParticipant | null = null
+  localParticipant$ = new BehaviorSubject<LocalParticipant | null>(null)
 
   enter() {
     return concat(of(new LocalParticipant()), NEVER).pipe(
       tap((localParticipant) => {
-        this.localParticipant = localParticipant
+        this.localParticipant$.next(localParticipant)
       }),
+      switchMap(() => this.localParticipant$.pipe(take(1))),
       switchMap(
-        () =>
-          this.localParticipant?.addUserMediaStreamManager$({
+        (localParticipant) =>
+          localParticipant?.addUserMediaStreamManager$({
             video: true,
             audio: true,
-          }) ?? EMPTY,
+          }) ?? of([]),
       ),
       finalize(() => {
-        this.localParticipant = null
+        this.localParticipant$.next(null)
       }),
     )
   }
 
   getLocalMediaStreamList$(mediaStreamSource?: MediaStreamType['SOURCE']) {
-    if (!this.localParticipant) {
-      return EMPTY
-    }
-
-    return this.localParticipant
-      .getMediaStreamManagerList$(mediaStreamSource)
-      .pipe(
-        map((mediaStreamManagerList) =>
-          mediaStreamManagerList.map(
-            (mediaStreamManager) => mediaStreamManager.mediaStream,
-          ),
+    return this.localParticipant$.pipe(
+      switchMap(
+        (localParticipant) =>
+          localParticipant?.getMediaStreamManagerList$(mediaStreamSource) ??
+          of([]),
+      ),
+      map((mediaStreamManagerList) =>
+        mediaStreamManagerList.map(
+          (mediaStreamManager) => mediaStreamManager.mediaStream,
         ),
-      )
+      ),
+    )
   }
 }
 
