@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import styled from 'styled-components'
 
 import { MEDIA_STREAM } from '@/constants/MediaStream'
@@ -21,13 +21,25 @@ const ControlButtons = styled.div`
   width: 100%;
 `
 
-const ControlButton = styled.button`
+const ControlButton = styled.button<{ enabled: boolean }>`
   width: 100px;
   height: 30px;
+
+  ${({ enabled }) =>
+    enabled
+      ? `
+    background-color: green;
+  `
+      : `
+    background-color: red;
+  `}
 `
 
 function LocalVideo() {
   const videoElementRef = useRef<HTMLVideoElement>(null)
+  const [isVideoEnabled, setIsVideoEnabled] = useState(true)
+  const [isAudioEnabled, setIsAudioEnabled] = useState(true)
+
   const localUserMediaStreamManagerList = useLocalMediaStreamManager(
     MEDIA_STREAM.SOURCE.USER,
   )
@@ -43,12 +55,32 @@ function LocalVideo() {
     videoElementRef.current.srcObject = userMediaStream
   }, [localUserMediaStreamManager])
 
+  const handleToggleVideo = () => {
+    if (!localUserMediaStreamManager) {
+      return
+    }
+    localUserMediaStreamManager.toggleVideo(!isVideoEnabled)
+    setIsVideoEnabled((prev) => !prev)
+  }
+
+  const handleToggleAudio = () => {
+    if (!localUserMediaStreamManager) {
+      return
+    }
+    localUserMediaStreamManager.toggleAudio(!isAudioEnabled)
+    setIsAudioEnabled((prev) => !prev)
+  }
+
   return (
     <Layout>
       <UserMedia ref={videoElementRef} autoPlay playsInline muted />
       <ControlButtons>
-        <ControlButton>비디오 toggle</ControlButton>
-        <ControlButton>오디오 toggle</ControlButton>
+        <ControlButton enabled={isVideoEnabled} onClick={handleToggleVideo}>
+          비디오 toggle
+        </ControlButton>
+        <ControlButton enabled={isAudioEnabled} onClick={handleToggleAudio}>
+          오디오 toggle
+        </ControlButton>
       </ControlButtons>
     </Layout>
   )
