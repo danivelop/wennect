@@ -12,6 +12,7 @@
     "noEmit": true,
     "baseUrl": "./",
     "allowSyntheticDefaultImports": true,
+    "noUncheckedIndexedAccess": true,
     "lib": ["dom", "es2022"],
     "paths": {
       "@/*": ["src/*"]

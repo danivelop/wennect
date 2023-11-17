@@ -1,4 +1,4 @@
-import { BehaviorSubject, from, of, EMPTY, NEVER, concat } from 'rxjs'
+import { BehaviorSubject, from, of, NEVER, concat } from 'rxjs'
 import { tap, switchMap, take, finalize } from 'rxjs/operators'
 
 import { MEDIA_STREAM } from '@/constants/MediaStream'
@@ -85,7 +85,7 @@ class LocalParticipant {
             ),
           )
         }
-        return EMPTY
+        return of([])
       }),
     )
   }

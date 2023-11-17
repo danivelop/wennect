@@ -1,9 +1,7 @@
 import { BehaviorSubject, of, NEVER, concat } from 'rxjs'
-import { map, tap, switchMap, finalize, take } from 'rxjs/operators'
+import { tap, switchMap, finalize, take } from 'rxjs/operators'
 
 import LocalParticipant from '@/models/LocalParticipant'
-
-import type { MediaStreamType } from '@/constants/MediaStream'
 
 class WebRTCService {
   localParticipant$ = new BehaviorSubject<LocalParticipant | null>(null)
@@ -27,19 +25,8 @@ class WebRTCService {
     )
   }
 
-  getLocalMediaStreamList$(mediaStreamSource?: MediaStreamType['SOURCE']) {
-    return this.localParticipant$.pipe(
-      switchMap(
-        (localParticipant) =>
-          localParticipant?.getMediaStreamManagerList$(mediaStreamSource) ??
-          of([]),
-      ),
-      map((mediaStreamManagerList) =>
-        mediaStreamManagerList.map(
-          (mediaStreamManager) => mediaStreamManager.mediaStream,
-        ),
-      ),
-    )
+  getLocalParticipant$() {
+    return this.localParticipant$.asObservable()
   }
 }
 

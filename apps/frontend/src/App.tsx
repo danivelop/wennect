@@ -1,12 +1,12 @@
 import React from 'react'
 
-import LocalVideo from '@/components/LocalVideo'
+import LocalParticipant from '@/components/LocalParticipant'
 import Room from '@/components/Room'
 
 function App() {
   return (
     <Room>
-      <LocalVideo />
+      <LocalParticipant />
     </Room>
   )
 }
