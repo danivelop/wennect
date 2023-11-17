@@ -1,7 +1,14 @@
 import React from 'react'
 
+import LocalVideo from '@/components/LocalVideo'
+import Room from '@/components/Room'
+
 function App() {
-  return <div>hello world</div>
+  return (
+    <Room>
+      <LocalVideo />
+    </Room>
+  )
 }
 
 export default App

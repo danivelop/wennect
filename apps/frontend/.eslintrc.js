@@ -7,7 +7,13 @@ module.exports = {
     'plugin:react/recommended',
     'plugin:typescript-sort-keys/recommended',
   ],
-  plugins: ['react', '@typescript-eslint', 'prettier', 'typescript-sort-keys'],
+  plugins: [
+    'react',
+    'react-hooks',
+    '@typescript-eslint',
+    'prettier',
+    'typescript-sort-keys',
+  ],
   settings: {
     react: {
       version: 'detect',
@@ -68,10 +74,13 @@ module.exports = {
         jsx: 'never',
       },
     ],
+    'react-hooks/rules-of-hooks': 'error',
+    'react-hooks/exhaustive-deps': 'error',
     'prettier/prettier': 'error',
     'typescript-sort-keys/interface': 'warn',
     'typescript-sort-keys/string-enum': 'warn',
     'no-console': 'off',
+    '@typescript-eslint/consistent-type-imports': 'error',
   },
   overrides: [
     {
