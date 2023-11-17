@@ -5,7 +5,7 @@ import { MEDIA_STREAM } from '@/constants/MediaStream'
 import useLocalMediaStream from '@/hooks/useLocalMediaStream'
 
 const Video = styled.video`
-  width: 200px;
+  width: 400px;
   height: 300px;
   background-color: black;
 `

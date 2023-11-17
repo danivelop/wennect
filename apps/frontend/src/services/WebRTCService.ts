@@ -15,8 +15,10 @@ class WebRTCService {
       }),
       switchMap(
         () =>
-          this.localParticipant?.addUserMediaStreamManager$({ video: true }) ??
-          EMPTY,
+          this.localParticipant?.addUserMediaStreamManager$({
+            video: true,
+            audio: true,
+          }) ?? EMPTY,
       ),
       finalize(() => {
         this.localParticipant = null
