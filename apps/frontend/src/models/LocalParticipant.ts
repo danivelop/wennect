@@ -1,5 +1,5 @@
-import { BehaviorSubject, from, of, iif, EMPTY, NEVER, concat } from 'rxjs'
-import { tap, switchMap, toArray, filter, take, finalize } from 'rxjs/operators'
+import { BehaviorSubject, from, of, EMPTY, NEVER, concat } from 'rxjs'
+import { tap, switchMap, take, finalize } from 'rxjs/operators'
 
 import { MEDIA_STREAM } from '@/constants/MediaStream'
 import MediaStreamManager from '@/models/MediaStreamManager'
@@ -67,31 +67,26 @@ class LocalParticipant {
 
   getMediaStreamManagerList$(mediaStreamSource?: MediaStreamType['SOURCE']) {
     return this.mediaStreamManagerList$.pipe(
-      switchMap((mediaStreamManagerList) =>
-        iif(
-          () => !mediaStreamSource,
-          of(mediaStreamManagerList),
-          iif(
-            () => mediaStreamSource === MEDIA_STREAM.SOURCE.USER,
-            from(mediaStreamManagerList).pipe(
-              filter((mediaStreamManager) =>
-                mediaStreamManager.isUserMediaStream(),
-              ),
-              toArray(),
+      switchMap((mediaStreamManagerList) => {
+        if (!mediaStreamSource) {
+          return of(mediaStreamManagerList)
+        }
+        if (mediaStreamSource === MEDIA_STREAM.SOURCE.USER) {
+          return of(
+            mediaStreamManagerList.filter((mediaStreamManager) =>
+              mediaStreamManager.isUserMediaStream(),
             ),
-            iif(
-              () => mediaStreamSource === MEDIA_STREAM.SOURCE.DISPLAY,
-              from(mediaStreamManagerList).pipe(
-                filter((mediaStreamManager) =>
-                  mediaStreamManager.isDisplayMediaStream(),
-                ),
-                toArray(),
-              ),
-              EMPTY,
+          )
+        }
+        if (mediaStreamSource === MEDIA_STREAM.SOURCE.DISPLAY) {
+          return of(
+            mediaStreamManagerList.filter((mediaStreamManager) =>
+              mediaStreamManager.isDisplayMediaStream(),
             ),
-          ),
-        ),
-      ),
+          )
+        }
+        return EMPTY
+      }),
     )
   }
 }
