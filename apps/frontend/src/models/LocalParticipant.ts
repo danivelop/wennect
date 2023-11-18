@@ -1,5 +1,5 @@
 import { BehaviorSubject, from, of, NEVER, concat } from 'rxjs'
-import { tap, switchMap, take, finalize } from 'rxjs/operators'
+import { tap, switchMap, take, finalize, map } from 'rxjs/operators'
 
 import { MEDIA_STREAM } from '@/constants/MediaStream'
 import MediaStreamManager from '@/models/MediaStreamManager'
@@ -16,32 +16,40 @@ class LocalParticipant {
 
   addUserMediaStreamManager$(constraints: MediaStreamConstraints) {
     return this.addMediaStreamManager$(
-      from(window.navigator.mediaDevices.getUserMedia(constraints)),
+      from(window.navigator.mediaDevices.getUserMedia(constraints)).pipe(
+        map(
+          (mediaStream) =>
+            new MediaStreamManager(mediaStream, MEDIA_STREAM.SOURCE.USER),
+        ),
+      ),
     )
   }
 
   addDisplayMediaStreamManager$(constraints: MediaStreamConstraints) {
     return this.addMediaStreamManager$(
-      from(window.navigator.mediaDevices.getDisplayMedia(constraints)),
+      from(window.navigator.mediaDevices.getDisplayMedia(constraints)).pipe(
+        map(
+          (mediaStream) =>
+            new MediaStreamManager(mediaStream, MEDIA_STREAM.SOURCE.DISPLAY),
+        ),
+      ),
     )
   }
 
-  private addMediaStreamManager$(mediaStream$: Observable<MediaStream>) {
-    return mediaStream$.pipe(
-      switchMap((mediaStream) => {
-        const newMdiaStreamManager = new MediaStreamManager(
-          mediaStream,
-          MEDIA_STREAM.SOURCE.USER,
-        )
+  private addMediaStreamManager$(
+    mediaStreamManager$: Observable<MediaStreamManager>,
+  ) {
+    return mediaStreamManager$.pipe(
+      switchMap((mediaStreamManager) => {
         return concat(this.mediaStreamManagerList$.pipe(take(1)), NEVER).pipe(
           tap((mediaStreamManagerList) => {
             this.mediaStreamManagerList$.next([
               ...mediaStreamManagerList,
-              newMdiaStreamManager,
+              mediaStreamManager,
             ])
           }),
           finalize(() => {
-            this.removeMediaStreamManager$(newMdiaStreamManager)
+            this.removeMediaStreamManager$(mediaStreamManager)
               .subscribe()
               .unsubscribe()
           }),

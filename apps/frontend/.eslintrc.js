@@ -81,6 +81,7 @@ module.exports = {
     'typescript-sort-keys/string-enum': 'warn',
     'no-console': 'off',
     '@typescript-eslint/consistent-type-imports': 'error',
+    'no-param-reassign': 'off',
   },
   overrides: [
     {
