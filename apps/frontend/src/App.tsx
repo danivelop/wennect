@@ -1,14 +1,9 @@
 import React from 'react'
 
 import LocalParticipant from '@/components/LocalParticipant'
-import Room from '@/components/Room'
 
 function App() {
-  return (
-    <Room>
-      <LocalParticipant />
-    </Room>
-  )
+  return <LocalParticipant />
 }
 
 export default App

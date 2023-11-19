@@ -1,16 +1,19 @@
 import { useState, useEffect } from 'react'
 
-import useLocalParticipant from './useLocalParticipant'
+import useLocalParticipant from '@/hooks/useLocalParticipant'
 
 import type { MediaStreamType } from '@/constants/MediaStream'
 import type MediaStreamManager from '@/models/MediaStreamManager'
 
-function useLocalMediaStreamManager(
-  mediaStreamSource?: MediaStreamType['SOURCE'],
-) {
+interface UseMediaStreamManagerProps {
+  source?: MediaStreamType['SOURCE']
+}
+
+function useMediaStreamManager({ source }: UseMediaStreamManagerProps = {}) {
   const [mediaStreamManagerList, setMediaStreamManagerList] = useState<
     MediaStreamManager[]
   >([])
+
   const localParticipant = useLocalParticipant()
 
   useEffect(() => {
@@ -19,15 +22,15 @@ function useLocalMediaStreamManager(
     }
 
     const subscription = localParticipant
-      .getMediaStreamManagerList$(mediaStreamSource)
+      .getMediaStreamManagerList$(source)
       .subscribe(setMediaStreamManagerList)
 
     return () => {
       subscription.unsubscribe()
     }
-  }, [localParticipant, mediaStreamSource])
+  }, [localParticipant, source])
 
   return mediaStreamManagerList
 }
 
-export default useLocalMediaStreamManager
+export default useMediaStreamManager

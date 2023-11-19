@@ -1,9 +1,11 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import styled from 'styled-components'
 
+import WebRTCService from '@/services/WebRTCService'
+
 import { MEDIA_STREAM } from '@/constants/MediaStream'
-import useLocalMediaStreamManager from '@/hooks/useLocalMediaStreamManager'
 import useLocalParticipant from '@/hooks/useLocalParticipant'
+import useMediaStreamManager from '@/hooks/useMediaStreamManager'
 
 import type { Subscription } from 'rxjs'
 
@@ -24,12 +26,12 @@ const ControlButtons = styled.div`
   width: 100%;
 `
 
-const ControlButton = styled.button<{ enabled: boolean }>`
+const ControlButton = styled.button<{ $enabled: boolean }>`
   width: 100px;
   height: 30px;
 
-  ${({ enabled }) =>
-    enabled
+  ${({ $enabled }) =>
+    $enabled
       ? `
     background-color: green;
   `
@@ -39,47 +41,90 @@ const ControlButton = styled.button<{ enabled: boolean }>`
 `
 
 function LocalVideo() {
-  const videoElementRef = useRef<HTMLVideoElement>(null)
-  const [isVideoEnabled, setIsVideoEnabled] = useState(true)
-  const [isAudioEnabled, setIsAudioEnabled] = useState(true)
+  const [isVideoEnabled, setIsVideoEnabled] = useState(false)
+  const [isAudioEnabled, setIsAudioEnabled] = useState(false)
   const [isScreenShareEnabled, setIsScreenShareEnabled] = useState(false)
-  const localDisplayMediaSubscription = useRef<Subscription | null>(null)
+  const localUserVideoElementRef = useRef<HTMLVideoElement>(null)
+  const localDisplayVideoElementRef = useRef<HTMLVideoElement>(null)
+  const displaySubscriptionRef = useRef<Subscription | null>(null)
 
   const localParticipant = useLocalParticipant()
 
-  const localUserMediaStreamManagerList = useLocalMediaStreamManager(
-    MEDIA_STREAM.SOURCE.USER,
-  )
-  const localDisplayMediaStreamManagerList = useLocalMediaStreamManager(
-    MEDIA_STREAM.SOURCE.DISPLAY,
-  )
-  const localUserMediaStreamManager = localUserMediaStreamManagerList[0]
-  const localDisplayMediaStreamManager = localDisplayMediaStreamManagerList[0]
-
-  useEffect(() => {
-    if (!videoElementRef.current || !localUserMediaStreamManager) {
-      return
-    }
-
-    const userMediaStream = localUserMediaStreamManager.mediaStream
-
-    videoElementRef.current.srcObject = userMediaStream
-  }, [localUserMediaStreamManager])
+  const localUserMediaStreamManager = useMediaStreamManager({
+    source: MEDIA_STREAM.SOURCE.USER,
+  })[0]
+  const localDisplayMediaStreamManager = useMediaStreamManager({
+    source: MEDIA_STREAM.SOURCE.DISPLAY,
+  })[0]
 
   const handleToggleVideo = () => {
-    if (!localUserMediaStreamManager) {
+    if (!localParticipant) {
       return
     }
-    localUserMediaStreamManager.toggleVideo(!isVideoEnabled)
-    setIsVideoEnabled((prev) => !prev)
+    if (!localUserMediaStreamManager) {
+      localParticipant.addUserMediaStreamManager(
+        {
+          video: true,
+        },
+        {
+          next: ({ video }) => {
+            setIsVideoEnabled(video)
+          },
+          error: () => {},
+        },
+      )
+      return
+    }
+    if (!localUserMediaStreamManager.hasVideoTrack()) {
+      localUserMediaStreamManager.addUserMediaStreamTrack(
+        { video: true },
+        {
+          next: ({ video }) => {
+            setIsVideoEnabled(video)
+          },
+          error: () => {},
+        },
+      )
+      return
+    }
+    if (localUserMediaStreamManager.setVideoEnabled(!isVideoEnabled)) {
+      setIsVideoEnabled((prev) => !prev)
+    }
   }
 
   const handleToggleAudio = () => {
-    if (!localUserMediaStreamManager) {
+    if (!localParticipant) {
       return
     }
-    localUserMediaStreamManager.toggleAudio(!isAudioEnabled)
-    setIsAudioEnabled((prev) => !prev)
+    if (!localUserMediaStreamManager) {
+      localParticipant.addUserMediaStreamManager(
+        {
+          audio: true,
+        },
+        {
+          next: ({ audio }) => {
+            setIsAudioEnabled(audio)
+          },
+          error: () => {},
+        },
+      )
+      return
+    }
+    if (!localUserMediaStreamManager.hasAudioTrack()) {
+      localUserMediaStreamManager.addUserMediaStreamTrack(
+        { audio: true },
+        {
+          next: ({ audio }) => {
+            setIsAudioEnabled(audio)
+          },
+          error: () => {},
+        },
+      )
+      return
+    }
+    if (localUserMediaStreamManager.setAudioEnabled(!isAudioEnabled)) {
+      setIsAudioEnabled((prev) => !prev)
+    }
   }
 
   const handleScreenShare = () => {
@@ -87,42 +132,81 @@ function LocalVideo() {
       return
     }
 
-    if (!isScreenShareEnabled) {
-      localDisplayMediaSubscription.current = localParticipant
-        .addDisplayMediaStreamManager$({ video: true })
-        .subscribe()
-      setIsScreenShareEnabled(true)
-    } else if (localDisplayMediaSubscription.current) {
-      localDisplayMediaSubscription.current.unsubscribe()
-      localDisplayMediaSubscription.current = null
+    if (isScreenShareEnabled) {
+      displaySubscriptionRef.current?.unsubscribe()
       setIsScreenShareEnabled(false)
+    } else {
+      displaySubscriptionRef.current =
+        localParticipant.addDisplayMediaStreamManager(
+          { video: true },
+          {
+            next: () => {
+              setIsScreenShareEnabled(true)
+            },
+            error: () => {},
+            complete: () => {
+              setIsScreenShareEnabled(false)
+            },
+          },
+        )
     }
   }
 
+  useEffect(() => {
+    const subscription = WebRTCService.enter(
+      { video: true, audio: true },
+      {
+        next: ({ video, audio }) => {
+          setIsVideoEnabled(video)
+          setIsAudioEnabled(audio)
+        },
+        error: () => {},
+      },
+    )
+
+    return () => {
+      subscription.unsubscribe()
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!localUserVideoElementRef.current || !localUserMediaStreamManager) {
+      return
+    }
+
+    localUserVideoElementRef.current.srcObject =
+      localUserMediaStreamManager.mediaStream
+  }, [localUserMediaStreamManager])
+
+  useEffect(() => {
+    if (
+      !localDisplayVideoElementRef.current ||
+      !localDisplayMediaStreamManager
+    ) {
+      return
+    }
+
+    localDisplayVideoElementRef.current.srcObject =
+      localDisplayMediaStreamManager.mediaStream
+  }, [localDisplayMediaStreamManager])
+
   return (
     <Layout>
-      <Video ref={videoElementRef} autoPlay playsInline muted />
+      {localUserMediaStreamManager && (
+        <Video ref={localUserVideoElementRef} autoPlay playsInline muted />
+      )}
       {localDisplayMediaStreamManager && (
-        <Video
-          ref={(ref) => {
-            if (ref && localDisplayMediaStreamManager) {
-              ref.srcObject = localDisplayMediaStreamManager.mediaStream
-            }
-          }}
-          autoPlay
-          playsInline
-          muted
-        />
+        <Video ref={localDisplayVideoElementRef} autoPlay playsInline muted />
       )}
       <ControlButtons>
-        <ControlButton enabled={isVideoEnabled} onClick={handleToggleVideo}>
+        <ControlButton $enabled={isVideoEnabled} onClick={handleToggleVideo}>
           비디오 toggle
         </ControlButton>
-        <ControlButton enabled={isAudioEnabled} onClick={handleToggleAudio}>
+        <ControlButton $enabled={isAudioEnabled} onClick={handleToggleAudio}>
           오디오 toggle
         </ControlButton>
         <ControlButton
-          enabled={isScreenShareEnabled}
+          $enabled={isScreenShareEnabled}
           onClick={handleScreenShare}
         >
           화면공유
