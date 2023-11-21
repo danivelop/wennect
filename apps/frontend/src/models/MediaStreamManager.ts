@@ -94,34 +94,26 @@ class MediaStreamManager {
     return subscription
   }
 
-  setVideoEnabled(enabled: boolean): boolean {
-    const videoTracks = this.mediaStream.getVideoTracks()
+  setVideoEnabled(enabled: boolean) {
+    const videoTracks = this.getVideoTracks()
 
-    if (videoTracks.length === 0) {
-      return false
-    }
     for (let i = 0; i < videoTracks.length; i += 1) {
       const videoTrack = videoTracks[i]
       if (videoTrack) {
         videoTrack.enabled = enabled
       }
     }
-    return true
   }
 
-  setAudioEnabled(enabled: boolean): boolean {
-    const audioTracks = this.mediaStream.getAudioTracks()
+  setAudioEnabled(enabled: boolean) {
+    const audioTracks = this.getAudioTracks()
 
-    if (audioTracks.length === 0) {
-      return false
-    }
     for (let i = 0; i < audioTracks.length; i += 1) {
       const audioTrack = audioTracks[i]
       if (audioTrack) {
         audioTrack.enabled = enabled
       }
     }
-    return true
   }
 
   clear() {

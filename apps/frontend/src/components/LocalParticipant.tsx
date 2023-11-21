@@ -58,73 +58,21 @@ function LocalVideo() {
   })[0]
 
   const handleToggleVideo = () => {
-    if (!localParticipant) {
-      return
-    }
-    if (!localUserMediaStreamManager) {
-      localParticipant.addUserMediaStreamManager(
-        {
-          video: true,
-        },
-        {
-          next: (mediaStreamManager) => {
-            setIsVideoEnabled(mediaStreamManager.isVideoEnabled())
-          },
-          error: () => {},
-        },
-      )
-      return
-    }
-    if (!localUserMediaStreamManager.hasVideoTrack()) {
-      localUserMediaStreamManager.addUserMediaStreamTrack(
-        { video: true },
-        {
-          next: (mediaStreamManager) => {
-            setIsVideoEnabled(mediaStreamManager.isVideoEnabled())
-          },
-          error: () => {},
-        },
-      )
-      return
-    }
-    if (localUserMediaStreamManager.setVideoEnabled(!isVideoEnabled)) {
-      setIsVideoEnabled((prev) => !prev)
-    }
+    WebRTCService.setLocalVideoEnabled(!isVideoEnabled, {
+      next: (mediaStreamManager) => {
+        setIsVideoEnabled(mediaStreamManager.isVideoEnabled())
+      },
+      error: () => {},
+    })
   }
 
   const handleToggleAudio = () => {
-    if (!localParticipant) {
-      return
-    }
-    if (!localUserMediaStreamManager) {
-      localParticipant.addUserMediaStreamManager(
-        {
-          audio: true,
-        },
-        {
-          next: (mediaStreamManager) => {
-            setIsAudioEnabled(mediaStreamManager.isAudioEnabled())
-          },
-          error: () => {},
-        },
-      )
-      return
-    }
-    if (!localUserMediaStreamManager.hasAudioTrack()) {
-      localUserMediaStreamManager.addUserMediaStreamTrack(
-        { audio: true },
-        {
-          next: (mediaStreamManager) => {
-            setIsAudioEnabled(mediaStreamManager.isAudioEnabled())
-          },
-          error: () => {},
-        },
-      )
-      return
-    }
-    if (localUserMediaStreamManager.setAudioEnabled(!isAudioEnabled)) {
-      setIsAudioEnabled((prev) => !prev)
-    }
+    WebRTCService.setLocalAudioEnabled(!isAudioEnabled, {
+      next: (mediaStreamManager) => {
+        setIsAudioEnabled(mediaStreamManager.isAudioEnabled())
+      },
+      error: () => {},
+    })
   }
 
   const handleScreenShare = () => {
