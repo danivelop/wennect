@@ -119,11 +119,18 @@ function LocalVideo() {
 
   useEffect(() => {
     if (!localUserVideoElementRef.current || !localUserMediaStreamManager) {
-      return
+      return () => {}
     }
 
     localUserVideoElementRef.current.srcObject =
       localUserMediaStreamManager.mediaStream
+
+    return () => {
+      if (localUserVideoElementRef.current) {
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        localUserVideoElementRef.current.srcObject = null
+      }
+    }
   }, [localUserMediaStreamManager])
 
   useEffect(() => {
@@ -131,11 +138,18 @@ function LocalVideo() {
       !localDisplayVideoElementRef.current ||
       !localDisplayMediaStreamManager
     ) {
-      return
+      return () => {}
     }
 
     localDisplayVideoElementRef.current.srcObject =
       localDisplayMediaStreamManager.mediaStream
+
+    return () => {
+      if (localDisplayVideoElementRef.current) {
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        localDisplayVideoElementRef.current.srcObject = null
+      }
+    }
   }, [localDisplayMediaStreamManager])
 
   return (
