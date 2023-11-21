@@ -6,13 +6,9 @@ import { MEDIA_STREAM } from '@/constants/MediaStream'
 import type { MediaStreamType } from '@/constants/MediaStream'
 import type { Observer } from 'rxjs'
 
-interface TMediaStreamObserverNext {
-  audio: boolean
-  video: boolean
-}
-
 export interface TMediaStreamObserver
-  extends Partial<Observer<TMediaStreamObserverNext>> {}
+  // eslint-disable-next-line no-use-before-define
+  extends Partial<Observer<MediaStreamManager>> {}
 
 class MediaStreamManager {
   mediaStream: MediaStream
@@ -90,17 +86,9 @@ class MediaStreamManager {
             }),
           ),
         ),
+        map(() => this),
       )
-      .subscribe({
-        next: () => {
-          observer.next?.({
-            video: this.isVideoEnabled(),
-            audio: this.isAudioEnabled(),
-          })
-        },
-        error: observer.error,
-        complete: observer.complete,
-      })
+      .subscribe(observer)
 
     this.subscription.add(subscription)
     return subscription

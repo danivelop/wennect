@@ -67,8 +67,8 @@ function LocalVideo() {
           video: true,
         },
         {
-          next: ({ video }) => {
-            setIsVideoEnabled(video)
+          next: (mediaStreamManager) => {
+            setIsVideoEnabled(mediaStreamManager.isVideoEnabled())
           },
           error: () => {},
         },
@@ -79,8 +79,8 @@ function LocalVideo() {
       localUserMediaStreamManager.addUserMediaStreamTrack(
         { video: true },
         {
-          next: ({ video }) => {
-            setIsVideoEnabled(video)
+          next: (mediaStreamManager) => {
+            setIsVideoEnabled(mediaStreamManager.isVideoEnabled())
           },
           error: () => {},
         },
@@ -102,8 +102,8 @@ function LocalVideo() {
           audio: true,
         },
         {
-          next: ({ audio }) => {
-            setIsAudioEnabled(audio)
+          next: (mediaStreamManager) => {
+            setIsAudioEnabled(mediaStreamManager.isAudioEnabled())
           },
           error: () => {},
         },
@@ -114,8 +114,8 @@ function LocalVideo() {
       localUserMediaStreamManager.addUserMediaStreamTrack(
         { audio: true },
         {
-          next: ({ audio }) => {
-            setIsAudioEnabled(audio)
+          next: (mediaStreamManager) => {
+            setIsAudioEnabled(mediaStreamManager.isAudioEnabled())
           },
           error: () => {},
         },
@@ -156,9 +156,9 @@ function LocalVideo() {
     const subscription = WebRTCService.enter(
       { video: true, audio: true },
       {
-        next: ({ video, audio }) => {
-          setIsVideoEnabled(video)
-          setIsAudioEnabled(audio)
+        next: (mediaStreamManager) => {
+          setIsVideoEnabled(mediaStreamManager.isVideoEnabled())
+          setIsAudioEnabled(mediaStreamManager.isAudioEnabled())
         },
         error: () => {},
       },

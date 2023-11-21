@@ -102,16 +102,7 @@ class LocalParticipant {
           )
         }),
       )
-      .subscribe({
-        next: (mediaStreamManager) => {
-          observer.next?.({
-            video: mediaStreamManager.isVideoEnabled(),
-            audio: mediaStreamManager.isAudioEnabled(),
-          })
-        },
-        error: observer.error,
-        complete: observer.complete,
-      })
+      .subscribe(observer)
   }
 
   private removeMediaStreamManager(mediaStreamManager: MediaStreamManager) {
