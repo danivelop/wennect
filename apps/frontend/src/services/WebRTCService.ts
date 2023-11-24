@@ -132,7 +132,7 @@ class WebRTCService {
       .subscribe()
   }
 
-  getLocalParticipant$() {
+  private getLocalParticipant$() {
     return this.localParticipant$.pipe(
       take(1),
       filter(
