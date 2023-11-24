@@ -1,155 +1,148 @@
-import {
-  BehaviorSubject,
-  from,
-  of,
-  NEVER,
-  EMPTY,
-  concat,
-  Subscription,
-  merge,
-  fromEvent,
-} from 'rxjs'
-import { tap, switchMap, take, finalize, map, filter } from 'rxjs/operators'
+import { BehaviorSubject, from, of } from 'rxjs'
+import { tap, switchMap, take, map } from 'rxjs/operators'
 
 import { MEDIA_STREAM } from '@/constants/MediaStream'
 import MediaStreamManager from '@/models/MediaStreamManager'
 
 import type { MediaStreamType } from '@/constants/MediaStream'
-import type { TMediaStreamObserver } from '@/models/MediaStreamManager'
-import type { Observable } from 'rxjs'
 
 class LocalParticipant {
   private mediaStreamManagerList$: BehaviorSubject<MediaStreamManager[]>
 
-  private subscription: Subscription
-
   constructor() {
     this.mediaStreamManagerList$ = new BehaviorSubject<MediaStreamManager[]>([])
-    this.subscription = new Subscription()
   }
 
-  addUserMediaStreamManager(
-    constraints: MediaStreamConstraints,
-    observer: TMediaStreamObserver,
-  ) {
-    const subscription = this.addMediaStreamManager(
-      from(window.navigator.mediaDevices.getUserMedia(constraints)).pipe(
-        map(
-          (mediaStream) =>
-            new MediaStreamManager(mediaStream, MEDIA_STREAM.SOURCE.USER),
+  addUserMediaStreamManager$(constraints: MediaStreamConstraints) {
+    return from(window.navigator.mediaDevices.getUserMedia(constraints)).pipe(
+      map(
+        (mediaStream) =>
+          new MediaStreamManager(mediaStream, MEDIA_STREAM.SOURCE.USER),
+      ),
+      switchMap((mediaStreamManager) =>
+        this.addMediaStreamManager$(mediaStreamManager),
+      ),
+    )
+  }
+
+  addDisplayMediaStreamManager$(constraints: MediaStreamConstraints) {
+    return from(
+      window.navigator.mediaDevices.getDisplayMedia(constraints),
+    ).pipe(
+      map(
+        (mediaStream) =>
+          new MediaStreamManager(mediaStream, MEDIA_STREAM.SOURCE.DISPLAY),
+      ),
+      switchMap((mediaStreamManager) =>
+        this.addMediaStreamManager$(mediaStreamManager),
+      ),
+    )
+  }
+
+  private addMediaStreamManager$(_mediaStreamManager: MediaStreamManager) {
+    return of(_mediaStreamManager).pipe(
+      switchMap((mediaStreamManager) =>
+        this.mediaStreamManagerList$.pipe(
+          take(1),
+          tap((mediaStreamManagerList) => {
+            this.mediaStreamManagerList$.next([
+              ...mediaStreamManagerList,
+              mediaStreamManager,
+            ])
+          }),
         ),
       ),
-      observer,
+      map(() => _mediaStreamManager),
     )
-
-    this.subscription.add(subscription)
-    return subscription
   }
 
-  addDisplayMediaStreamManager(
-    constraints: MediaStreamConstraints,
-    observer: TMediaStreamObserver,
-  ) {
-    const subscription = this.addMediaStreamManager(
-      from(window.navigator.mediaDevices.getDisplayMedia(constraints)).pipe(
-        switchMap((mediaStream) =>
-          merge(
-            of(
-              new MediaStreamManager(mediaStream, MEDIA_STREAM.SOURCE.DISPLAY),
-            ),
-            of(mediaStream.getVideoTracks()[0]).pipe(
-              filter(
-                (videoTrack): videoTrack is MediaStreamTrack => !!videoTrack,
-              ),
-              switchMap((videoTrack) =>
-                fromEvent(videoTrack, 'ended').pipe(
-                  tap(() => {
-                    subscription.unsubscribe()
-                  }),
-                ),
-              ),
-              switchMap(() => EMPTY),
-            ),
-          ),
-        ),
+  private upsertUserMediaStreamManager$(constraints: MediaStreamConstraints) {
+    return this.observeMediaStreamManagerList$(MEDIA_STREAM.SOURCE.USER).pipe(
+      take(1),
+      map(
+        (localUserMediaStreamManagerList) => localUserMediaStreamManagerList[0],
       ),
-      observer,
+      switchMap((localUserMediaStreamManager) => {
+        if (localUserMediaStreamManager) {
+          return of(localUserMediaStreamManager)
+        }
+
+        return this.addUserMediaStreamManager$(constraints)
+      }),
     )
-
-    this.subscription.add(subscription)
-    return subscription
   }
 
-  private addMediaStreamManager(
-    mediaStreamManager$: Observable<MediaStreamManager>,
-    observer: TMediaStreamObserver,
-  ) {
-    return mediaStreamManager$
-      .pipe(
-        switchMap((mediaStreamManager) => {
-          return concat(this.mediaStreamManagerList$.pipe(take(1)), NEVER).pipe(
-            tap((mediaStreamManagerList) => {
-              this.mediaStreamManagerList$.next([
-                ...mediaStreamManagerList,
-                mediaStreamManager,
-              ])
-            }),
-            map(() => mediaStreamManager),
-            finalize(() => {
-              this.removeMediaStreamManager(mediaStreamManager)
-              observer.complete?.()
-            }),
-          )
-        }),
-      )
-      .subscribe(observer)
-  }
-
-  private removeMediaStreamManager(mediaStreamManager: MediaStreamManager) {
-    return this.mediaStreamManagerList$
-      .pipe(
-        take(1),
-        tap(() => {
-          mediaStreamManager.clear()
-        }),
-        tap((mediaStreamManagerList) => {
-          const newMediaStreamManagerList = mediaStreamManagerList.filter(
-            (msManager) => msManager !== mediaStreamManager,
-          )
-          this.mediaStreamManagerList$.next(newMediaStreamManagerList)
-        }),
-        map(() => mediaStreamManager),
-      )
-      .subscribe()
-  }
-
-  getMediaStreamManagerList$(mediaStreamSource?: MediaStreamType['SOURCE']) {
+  removeMediaStreamManager$(mediaStreamManager: MediaStreamManager) {
     return this.mediaStreamManagerList$.pipe(
-      switchMap((mediaStreamManagerList) => {
+      take(1),
+      tap(() => {
+        mediaStreamManager.clear()
+      }),
+      tap((mediaStreamManagerList) => {
+        const newMediaStreamManagerList = mediaStreamManagerList.filter(
+          (msManager) => msManager !== mediaStreamManager,
+        )
+        this.mediaStreamManagerList$.next(newMediaStreamManagerList)
+      }),
+      map(() => mediaStreamManager),
+    )
+  }
+
+  setVideoEnabled$(
+    enabled: boolean,
+    constraints: Pick<MediaStreamConstraints, 'video'> = { video: true },
+  ) {
+    return this.upsertUserMediaStreamManager$(constraints).pipe(
+      switchMap((localUserMediaStreamManager) =>
+        localUserMediaStreamManager.setVideoEnabled$(enabled, constraints),
+      ),
+    )
+  }
+
+  setAudioEnabled$(
+    enabled: boolean,
+    constraints: Pick<MediaStreamConstraints, 'audio'> = { audio: true },
+  ) {
+    return this.upsertUserMediaStreamManager$(constraints).pipe(
+      switchMap((localUserMediaStreamManager) =>
+        localUserMediaStreamManager.setAudioEnabled$(enabled, constraints),
+      ),
+    )
+  }
+
+  observeMediaStreamManagerList$(
+    mediaStreamSource?: MediaStreamType['SOURCE'],
+  ) {
+    return this.mediaStreamManagerList$.pipe(
+      map((mediaStreamManagerList) => {
         if (!mediaStreamSource) {
-          return of(mediaStreamManagerList)
+          return mediaStreamManagerList
         }
         if (mediaStreamSource === MEDIA_STREAM.SOURCE.USER) {
-          return of(
-            mediaStreamManagerList.filter((mediaStreamManager) =>
-              mediaStreamManager.isUserMediaStream(),
-            ),
+          return mediaStreamManagerList.filter((mediaStreamManager) =>
+            mediaStreamManager.isUserMediaStream(),
           )
         }
         if (mediaStreamSource === MEDIA_STREAM.SOURCE.DISPLAY) {
-          return of(
-            mediaStreamManagerList.filter((mediaStreamManager) =>
-              mediaStreamManager.isDisplayMediaStream(),
-            ),
+          return mediaStreamManagerList.filter((mediaStreamManager) =>
+            mediaStreamManager.isDisplayMediaStream(),
           )
         }
-        return of([])
+        return []
       }),
     )
   }
 
   clear() {
-    this.subscription.unsubscribe()
+    this.mediaStreamManagerList$
+      .pipe(
+        take(1),
+        switchMap((mediaStreamManagerList) => from(mediaStreamManagerList)),
+        tap((mediaStreamManager) => {
+          mediaStreamManager.clear()
+        }),
+      )
+      .subscribe()
     this.mediaStreamManagerList$.complete()
   }
 }

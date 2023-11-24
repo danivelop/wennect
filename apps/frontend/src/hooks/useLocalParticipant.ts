@@ -10,7 +10,7 @@ function useLocalParticipant() {
 
   useEffect(() => {
     const subscription =
-      WebRTCService.getLocalParticipant$().subscribe(setLocalParticipant)
+      WebRTCService.observeLocalParticipant$().subscribe(setLocalParticipant)
 
     return () => {
       subscription.unsubscribe()

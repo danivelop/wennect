@@ -1,26 +1,24 @@
-import { Subscription, from, of, concat, NEVER } from 'rxjs'
-import { tap, switchMap, map, finalize } from 'rxjs/operators'
+import { BehaviorSubject, from, of, forkJoin } from 'rxjs'
+import { tap, map, switchMap } from 'rxjs/operators'
 
 import { MEDIA_STREAM } from '@/constants/MediaStream'
 
 import type { MediaStreamType } from '@/constants/MediaStream'
-import type { Observer } from 'rxjs'
-
-export interface TMediaStreamObserver
-  // eslint-disable-next-line no-use-before-define
-  extends Partial<Observer<MediaStreamManager>> {}
 
 class MediaStreamManager {
   mediaStream: MediaStream
 
-  private source: MediaStreamType['SOURCE']
+  isVideoEnabled$: BehaviorSubject<boolean>
 
-  private subscription: Subscription
+  isAudioEnabled$: BehaviorSubject<boolean>
+
+  private source: MediaStreamType['SOURCE']
 
   constructor(mediaStream: MediaStream, source: MediaStreamType['SOURCE']) {
     this.mediaStream = mediaStream
+    this.isVideoEnabled$ = new BehaviorSubject(this.isVideoEnabled())
+    this.isAudioEnabled$ = new BehaviorSubject(this.isAudioEnabled())
     this.source = source
-    this.subscription = new Subscription()
   }
 
   isUserMediaStream() {
@@ -31,19 +29,19 @@ class MediaStreamManager {
     return this.source === MEDIA_STREAM.SOURCE.DISPLAY
   }
 
-  getVideoTracks() {
+  private getVideoTracks() {
     return this.mediaStream.getVideoTracks()
   }
 
-  getAudioTracks() {
+  private getAudioTracks() {
     return this.mediaStream.getAudioTracks()
   }
 
-  hasVideoTrack() {
+  private hasVideoTrack() {
     return this.getVideoTracks().length > 0
   }
 
-  hasAudioTrack() {
+  private hasAudioTrack() {
     return this.getAudioTracks().length > 0
   }
 
@@ -61,63 +59,96 @@ class MediaStreamManager {
     return this.getAudioTracks().some((audioTrack) => audioTrack.enabled)
   }
 
-  addUserMediaStreamTrack(
-    constraints: MediaStreamConstraints,
-    observer: TMediaStreamObserver,
-  ) {
-    const subscription = from(
-      window.navigator.mediaDevices.getUserMedia(constraints),
+  private addUserMediaStreamTrack$(constraints: MediaStreamConstraints) {
+    return from(window.navigator.mediaDevices.getUserMedia(constraints)).pipe(
+      map((mediaStream) => mediaStream.getTracks()),
+      tap((tracks) => {
+        tracks.forEach((track) => {
+          this.mediaStream.addTrack(track)
+        })
+      }),
     )
-      .pipe(
-        map((mediaStream) => mediaStream.getTracks()),
-        switchMap((tracks) =>
-          concat(of(tracks), NEVER).pipe(
-            tap(() => {
-              tracks.forEach((track) => {
-                this.mediaStream.addTrack(track)
-              })
-            }),
-            finalize(() => {
-              tracks.forEach((track) => {
-                track.stop()
-                this.mediaStream.removeTrack(track)
-              })
-              observer.complete?.()
-            }),
-          ),
-        ),
-        map(() => this),
-      )
-      .subscribe(observer)
-
-    this.subscription.add(subscription)
-    return subscription
   }
 
-  setVideoEnabled(enabled: boolean) {
-    const videoTracks = this.getVideoTracks()
+  private upsertUserMediaStreamTrack$(constraints: MediaStreamConstraints) {
+    const upsertVideoMediaStreamTrack$ = constraints.video
+      ? of(this.getVideoTracks()).pipe(
+          switchMap((videoTracks) => {
+            if (videoTracks.length > 0) {
+              return of(videoTracks)
+            }
+            return this.addUserMediaStreamTrack$({
+              video: constraints.video,
+            })
+          }),
+        )
+      : of([])
+    const upsertAudioMediaStreamTrack$ = constraints.audio
+      ? of(this.getAudioTracks()).pipe(
+          switchMap((audioTracks) => {
+            if (audioTracks.length > 0) {
+              return of(audioTracks)
+            }
+            return this.addUserMediaStreamTrack$({
+              audio: constraints.audio,
+            })
+          }),
+        )
+      : of([])
 
-    for (let i = 0; i < videoTracks.length; i += 1) {
-      const videoTrack = videoTracks[i]
-      if (videoTrack) {
-        videoTrack.enabled = enabled
-      }
-    }
+    return forkJoin([
+      upsertVideoMediaStreamTrack$,
+      upsertAudioMediaStreamTrack$,
+    ]).pipe(
+      map(([videoTracks, audioTracks]) => [...videoTracks, ...audioTracks]),
+    )
   }
 
-  setAudioEnabled(enabled: boolean) {
-    const audioTracks = this.getAudioTracks()
+  setTrackEnabled$(enabled: boolean, constraints: MediaStreamConstraints) {
+    return this.upsertUserMediaStreamTrack$(constraints).pipe(
+      tap((tracks) => {
+        for (let i = 0; i < tracks.length; i += 1) {
+          const track = tracks[i]
+          if (track) {
+            track.enabled = enabled
+          }
+        }
+      }),
+      map(() => this),
+    )
+  }
 
-    for (let i = 0; i < audioTracks.length; i += 1) {
-      const audioTrack = audioTracks[i]
-      if (audioTrack) {
-        audioTrack.enabled = enabled
-      }
-    }
+  setVideoEnabled$(
+    enabled: boolean,
+    constraints: Pick<MediaStreamConstraints, 'video'> = { video: true },
+  ) {
+    return this.setTrackEnabled$(enabled, constraints).pipe(
+      tap(() => {
+        this.isVideoEnabled$.next(this.isVideoEnabled())
+      }),
+    )
+  }
+
+  setAudioEnabled$(
+    enabled: boolean,
+    constraints: Pick<MediaStreamConstraints, 'audio'> = { audio: true },
+  ) {
+    return this.setTrackEnabled$(enabled, constraints).pipe(
+      tap(() => {
+        this.isAudioEnabled$.next(this.isAudioEnabled())
+      }),
+    )
+  }
+
+  observeVideoEnabled$() {
+    return this.isVideoEnabled$.asObservable()
+  }
+
+  observeAudioEnabled$() {
+    return this.isAudioEnabled$.asObservable()
   }
 
   clear() {
-    this.subscription.unsubscribe()
     this.mediaStream.getTracks().forEach((track) => {
       track.stop()
       this.mediaStream.removeTrack(track)

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useEffect, useRef } from 'react'
 import styled from 'styled-components'
 
 import WebRTCService from '@/services/WebRTCService'
@@ -6,8 +6,7 @@ import WebRTCService from '@/services/WebRTCService'
 import { MEDIA_STREAM } from '@/constants/MediaStream'
 import useLocalParticipant from '@/hooks/useLocalParticipant'
 import useMediaStreamManager from '@/hooks/useMediaStreamManager'
-
-import type { Subscription } from 'rxjs'
+import useTrackEnabled from '@/hooks/useTrackEnabled'
 
 const Layout = styled.div`
   display: flex;
@@ -41,12 +40,8 @@ const ControlButton = styled.button<{ $enabled: boolean }>`
 `
 
 function LocalVideo() {
-  const [isVideoEnabled, setIsVideoEnabled] = useState(false)
-  const [isAudioEnabled, setIsAudioEnabled] = useState(false)
-  const [isScreenShareEnabled, setIsScreenShareEnabled] = useState(false)
   const localUserVideoElementRef = useRef<HTMLVideoElement>(null)
   const localDisplayVideoElementRef = useRef<HTMLVideoElement>(null)
-  const displaySubscriptionRef = useRef<Subscription | null>(null)
 
   const localParticipant = useLocalParticipant()
 
@@ -56,23 +51,16 @@ function LocalVideo() {
   const localDisplayMediaStreamManager = useMediaStreamManager({
     source: MEDIA_STREAM.SOURCE.DISPLAY,
   })[0]
+  const { isVideoEnabled, isAudioEnabled } = useTrackEnabled(
+    localUserMediaStreamManager,
+  )
 
   const handleToggleVideo = () => {
-    WebRTCService.setLocalVideoEnabled(!isVideoEnabled, {
-      next: (mediaStreamManager) => {
-        setIsVideoEnabled(mediaStreamManager.isVideoEnabled())
-      },
-      error: () => {},
-    })
+    WebRTCService.setLocalVideoEnabled(!isVideoEnabled)
   }
 
   const handleToggleAudio = () => {
-    WebRTCService.setLocalAudioEnabled(!isAudioEnabled, {
-      next: (mediaStreamManager) => {
-        setIsAudioEnabled(mediaStreamManager.isAudioEnabled())
-      },
-      error: () => {},
-    })
+    WebRTCService.setLocalAudioEnabled(!isAudioEnabled)
   }
 
   const handleScreenShare = () => {
@@ -80,40 +68,18 @@ function LocalVideo() {
       return
     }
 
-    if (isScreenShareEnabled) {
-      displaySubscriptionRef.current?.unsubscribe()
-      setIsScreenShareEnabled(false)
+    if (localDisplayMediaStreamManager) {
+      WebRTCService.removeLocalDisplayMediaStreamManager()
     } else {
-      displaySubscriptionRef.current =
-        localParticipant.addDisplayMediaStreamManager(
-          { video: true },
-          {
-            next: () => {
-              setIsScreenShareEnabled(true)
-            },
-            error: () => {},
-            complete: () => {
-              setIsScreenShareEnabled(false)
-            },
-          },
-        )
+      WebRTCService.addLocalDisplayMediaStreamManager()
     }
   }
 
   useEffect(() => {
-    const subscription = WebRTCService.enter(
-      { video: true, audio: true },
-      {
-        next: (mediaStreamManager) => {
-          setIsVideoEnabled(mediaStreamManager.isVideoEnabled())
-          setIsAudioEnabled(mediaStreamManager.isAudioEnabled())
-        },
-        error: () => {},
-      },
-    )
+    WebRTCService.enter()
 
     return () => {
-      subscription.unsubscribe()
+      WebRTCService.leave()
     }
   }, [])
 
@@ -168,7 +134,7 @@ function LocalVideo() {
           오디오 toggle
         </ControlButton>
         <ControlButton
-          $enabled={isScreenShareEnabled}
+          $enabled={!!localDisplayMediaStreamManager}
           onClick={handleScreenShare}
         >
           화면공유

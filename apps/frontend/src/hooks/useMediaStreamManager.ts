@@ -22,7 +22,7 @@ function useMediaStreamManager({ source }: UseMediaStreamManagerProps = {}) {
     }
 
     const subscription = localParticipant
-      .getMediaStreamManagerList$(source)
+      .observeMediaStreamManagerList$(source)
       .subscribe(setMediaStreamManagerList)
 
     return () => {

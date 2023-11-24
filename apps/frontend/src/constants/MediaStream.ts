@@ -3,6 +3,10 @@ export const MEDIA_STREAM = {
     USER: 'user',
     DISPLAY: 'display',
   },
+  TRACK: {
+    VIDEO: 'video',
+    AUDIO: 'audio',
+  },
 } as const
 
 export type MediaStreamType = {

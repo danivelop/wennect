@@ -1,159 +1,148 @@
-import { BehaviorSubject, of, NEVER, concat } from 'rxjs'
-import { tap, finalize, take, filter, switchMap, map } from 'rxjs/operators'
+import { BehaviorSubject, of, EMPTY, fromEvent, merge, concat } from 'rxjs'
+import { tap, take, filter, switchMap, catchError } from 'rxjs/operators'
 
-import { MEDIA_STREAM } from '@/constants/MediaStream'
 import LocalParticipant from '@/models/LocalParticipant'
 
-import type { TMediaStreamObserver } from '@/models/MediaStreamManager'
+import type MediaStreamManager from '@/models/MediaStreamManager'
+
+/**
+ * @todo
+ * - video enabled, audio enabled 업데이트 해주기
+ * - 화면공유 기능 만들기
+ * - 자원정리
+ */
 
 class WebRTCService {
   localParticipant$ = new BehaviorSubject<LocalParticipant | null>(null)
 
-  enter(constraints: MediaStreamConstraints, observer: TMediaStreamObserver) {
-    return concat(of(new LocalParticipant()), NEVER)
+  localDisplayMediaStreamManager: MediaStreamManager | null = null
+
+  enter() {
+    of(new LocalParticipant())
       .pipe(
         tap((localParticipant) => {
           this.localParticipant$.next(localParticipant)
         }),
-        tap((localParticipant) =>
-          localParticipant.addUserMediaStreamManager(constraints, observer),
+        switchMap((localParticipant) =>
+          concat(
+            localParticipant
+              .setVideoEnabled$(false)
+              .pipe(catchError(() => EMPTY)),
+            localParticipant
+              .setAudioEnabled$(false)
+              .pipe(catchError(() => EMPTY)),
+          ),
         ),
-        finalize(() => {
-          this.localParticipant$
-            .pipe(
-              take(1),
-              tap((localParticipant) => {
-                if (localParticipant) {
-                  localParticipant.clear()
-                  this.localParticipant$.next(null)
-                }
-              }),
-            )
-            .subscribe()
+        catchError(() => EMPTY),
+      )
+      .subscribe()
+  }
+
+  leave() {
+    this.removeLocalDisplayMediaStreamManager()
+    this.getLocalParticipant$()
+      .pipe(
+        tap((localParticipant) => {
+          localParticipant.clear()
+          this.localParticipant$.next(null)
         }),
       )
       .subscribe()
   }
 
-  setLocalVideoEnabled(enabled: boolean, observer: TMediaStreamObserver) {
-    return this.localParticipant$
+  addLocalDisplayMediaStreamManager() {
+    this.getLocalParticipant$()
       .pipe(
-        take(1),
-        filter(
-          (localParticipant): localParticipant is LocalParticipant =>
-            !!localParticipant,
-        ),
         switchMap((localParticipant) =>
-          localParticipant
-            .getMediaStreamManagerList$(MEDIA_STREAM.SOURCE.USER)
-            .pipe(
-              take(1),
-              map(
-                (localUserMediaStreamManagerList) =>
-                  localUserMediaStreamManagerList[0],
-              ),
-              tap((localUserMediaStreamManager) => {
-                if (!localUserMediaStreamManager) {
-                  localParticipant.addUserMediaStreamManager(
-                    {
-                      video: true,
-                    },
-                    {
-                      next: (mediaStreamManager) => {
-                        mediaStreamManager.setVideoEnabled(enabled)
-                        observer.next?.(mediaStreamManager)
-                      },
-                      error: observer.error,
-                      complete: observer.complete,
-                    },
-                  )
-                  return
-                }
-                if (!localUserMediaStreamManager.hasVideoTrack()) {
-                  localUserMediaStreamManager.addUserMediaStreamTrack(
-                    { video: true },
-                    {
-                      next: (mediaStreamManager) => {
-                        mediaStreamManager.setVideoEnabled(enabled)
-                        observer.next?.(mediaStreamManager)
-                      },
-                      error: observer.error,
-                      complete: observer.complete,
-                    },
-                  )
-                  return
-                }
-                if (localUserMediaStreamManager.hasVideoTrack()) {
-                  localUserMediaStreamManager.setVideoEnabled(enabled)
-                  observer.next?.(localUserMediaStreamManager)
-                }
-              }),
-            ),
+          localParticipant.addDisplayMediaStreamManager$({ video: true }),
         ),
+        tap((localDisplayMediaStreamManager) => {
+          this.localDisplayMediaStreamManager = localDisplayMediaStreamManager
+        }),
+        switchMap((localDisplayMediaStreamManager) =>
+          merge(
+            of(localDisplayMediaStreamManager),
+            of(
+              localDisplayMediaStreamManager.mediaStream.getVideoTracks()[0],
+            ).pipe(
+              filter(
+                (videoTrack): videoTrack is MediaStreamTrack => !!videoTrack,
+              ),
+              switchMap((videoTrack) =>
+                fromEvent(videoTrack, 'ended').pipe(
+                  take(1),
+                  tap(() => {
+                    this.removeLocalDisplayMediaStreamManager()
+                  }),
+                ),
+              ),
+              switchMap(() => EMPTY),
+            ),
+          ),
+        ),
+        catchError(() => EMPTY),
       )
       .subscribe()
   }
 
-  setLocalAudioEnabled(enabled: boolean, observer: TMediaStreamObserver) {
-    return this.localParticipant$
+  removeLocalDisplayMediaStreamManager() {
+    of(this.localDisplayMediaStreamManager)
       .pipe(
-        take(1),
         filter(
-          (localParticipant): localParticipant is LocalParticipant =>
-            !!localParticipant,
+          (
+            localDisplayMediaStreamManager,
+          ): localDisplayMediaStreamManager is MediaStreamManager =>
+            !!localDisplayMediaStreamManager,
         ),
-        switchMap((localParticipant) =>
-          localParticipant
-            .getMediaStreamManagerList$(MEDIA_STREAM.SOURCE.USER)
-            .pipe(
-              take(1),
-              map(
-                (localUserMediaStreamManagerList) =>
-                  localUserMediaStreamManagerList[0],
+        switchMap((localDisplayMediaStreamManager) =>
+          this.getLocalParticipant$().pipe(
+            switchMap((localParticipant) =>
+              localParticipant.removeMediaStreamManager$(
+                localDisplayMediaStreamManager,
               ),
-              tap((localUserMediaStreamManager) => {
-                if (!localUserMediaStreamManager) {
-                  localParticipant.addUserMediaStreamManager(
-                    {
-                      audio: true,
-                    },
-                    {
-                      next: (mediaStreamManager) => {
-                        mediaStreamManager.setAudioEnabled(enabled)
-                        observer.next?.(mediaStreamManager)
-                      },
-                      error: observer.error,
-                      complete: observer.complete,
-                    },
-                  )
-                  return
-                }
-                if (!localUserMediaStreamManager.hasAudioTrack()) {
-                  localUserMediaStreamManager.addUserMediaStreamTrack(
-                    { audio: true },
-                    {
-                      next: (mediaStreamManager) => {
-                        mediaStreamManager.setAudioEnabled(enabled)
-                        observer.next?.(mediaStreamManager)
-                      },
-                      error: observer.error,
-                      complete: observer.complete,
-                    },
-                  )
-                  return
-                }
-                if (localUserMediaStreamManager.hasAudioTrack()) {
-                  localUserMediaStreamManager.setAudioEnabled(enabled)
-                  observer.next?.(localUserMediaStreamManager)
-                }
-              }),
             ),
+          ),
         ),
+        tap(() => {
+          this.localDisplayMediaStreamManager = null
+        }),
+      )
+      .subscribe()
+  }
+
+  setLocalVideoEnabled(enabled: boolean) {
+    this.getLocalParticipant$()
+      .pipe(
+        switchMap((localParticipant) =>
+          localParticipant.setVideoEnabled$(enabled),
+        ),
+        catchError(() => EMPTY),
+      )
+      .subscribe()
+  }
+
+  setLocalAudioEnabled(enabled: boolean) {
+    this.getLocalParticipant$()
+      .pipe(
+        switchMap((localParticipant) =>
+          localParticipant.setAudioEnabled$(enabled),
+        ),
+        catchError(() => EMPTY),
       )
       .subscribe()
   }
 
   getLocalParticipant$() {
+    return this.localParticipant$.pipe(
+      take(1),
+      filter(
+        (localParticipant): localParticipant is LocalParticipant =>
+          !!localParticipant,
+      ),
+    )
+  }
+
+  observeLocalParticipant$() {
     return this.localParticipant$.asObservable()
   }
 }
