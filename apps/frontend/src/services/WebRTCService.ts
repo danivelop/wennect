@@ -1,4 +1,12 @@
-import { BehaviorSubject, of, EMPTY, fromEvent, merge, concat } from 'rxjs'
+import {
+  BehaviorSubject,
+  of,
+  EMPTY,
+  fromEvent,
+  merge,
+  concat,
+  forkJoin,
+} from 'rxjs'
 import { tap, take, filter, switchMap, catchError } from 'rxjs/operators'
 
 import LocalParticipant from '@/models/LocalParticipant'
@@ -24,14 +32,16 @@ class WebRTCService {
           this.localParticipant$.next(localParticipant)
         }),
         switchMap((localParticipant) =>
-          concat(
-            localParticipant
-              .setVideoEnabled$(false)
-              .pipe(catchError(() => EMPTY)),
-            localParticipant
-              .setAudioEnabled$(false)
-              .pipe(catchError(() => EMPTY)),
-          ),
+          forkJoin([
+            concat(
+              localParticipant
+                .setVideoEnabled$(false)
+                .pipe(catchError(() => EMPTY)),
+              localParticipant
+                .setAudioEnabled$(false)
+                .pipe(catchError(() => EMPTY)),
+            ),
+          ]),
         ),
         catchError(() => EMPTY),
       )
