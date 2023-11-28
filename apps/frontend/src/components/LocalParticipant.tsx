@@ -79,7 +79,7 @@ function LocalVideo() {
     WebRTCService.enter()
 
     return () => {
-      WebRTCService.leave()
+      WebRTCService.exit()
     }
   }, [])
 

@@ -17,10 +17,10 @@ import HttpError from '@/models/HttpError'
 async function runServer() {
   const options = {
     key: fs.readFileSync(
-      path.join(__dirname, '..', 'private/192.168.45.6-key.pem')
+      path.join(__dirname, '..', 'private/192.168.45.6-key.pem'),
     ),
     cert: fs.readFileSync(
-      path.join(__dirname, '..', 'private/192.168.45.6.pem')
+      path.join(__dirname, '..', 'private/192.168.45.6.pem'),
     ),
   }
 
@@ -58,7 +58,7 @@ async function runServer() {
       return res.status(error.status || 500).send({
         message: error.message ?? 'An unknown error occurred.',
       })
-    }
+    },
   )
 
   server.listen(port, () => {

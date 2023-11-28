@@ -1,9 +1,11 @@
 export const SOCKET = {
   EVENT: {
-    ANSWER: 'answer',
-    ENTER: 'enter',
-    ICE_CANDIDATE: 'iceCandidate',
+    JOIN: 'join',
     LEAVE: 'leave',
+    PARTICIPATE: 'participate',
+    WITHDRAW: 'withdraw',
     OFFER: 'offer',
+    ANSWER: 'answer',
+    ICE_CANDIDATE: 'iceCandidate',
   },
 } as const

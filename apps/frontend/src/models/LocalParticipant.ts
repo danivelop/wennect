@@ -7,9 +7,12 @@ import MediaStreamManager from '@/models/MediaStreamManager'
 import type { MediaStreamType } from '@/constants/MediaStream'
 
 class LocalParticipant {
+  private id: string
+
   private mediaStreamManagerList$: BehaviorSubject<MediaStreamManager[]>
 
-  constructor() {
+  constructor(id: string) {
+    this.id = id
     this.mediaStreamManagerList$ = new BehaviorSubject<MediaStreamManager[]>([])
   }
 
@@ -39,20 +42,15 @@ class LocalParticipant {
     )
   }
 
-  private addMediaStreamManager$(_mediaStreamManager: MediaStreamManager) {
-    return of(_mediaStreamManager).pipe(
-      switchMap((mediaStreamManager) =>
-        this.mediaStreamManagerList$.pipe(
-          take(1),
-          tap((mediaStreamManagerList) => {
-            this.mediaStreamManagerList$.next([
-              ...mediaStreamManagerList,
-              mediaStreamManager,
-            ])
-          }),
-        ),
-      ),
-      map(() => _mediaStreamManager),
+  private addMediaStreamManager$(mediaStreamManager: MediaStreamManager) {
+    return of(this.mediaStreamManagerList$.value).pipe(
+      tap((mediaStreamManagerList) => {
+        this.mediaStreamManagerList$.next([
+          ...mediaStreamManagerList,
+          mediaStreamManager,
+        ])
+      }),
+      map(() => mediaStreamManager),
     )
   }
 
@@ -73,8 +71,7 @@ class LocalParticipant {
   }
 
   removeMediaStreamManager$(mediaStreamManager: MediaStreamManager) {
-    return this.mediaStreamManagerList$.pipe(
-      take(1),
+    return of(this.mediaStreamManagerList$.value).pipe(
       tap(() => {
         mediaStreamManager.clear()
       }),
@@ -134,10 +131,8 @@ class LocalParticipant {
   }
 
   clear() {
-    this.mediaStreamManagerList$
+    from(this.mediaStreamManagerList$.value)
       .pipe(
-        take(1),
-        switchMap((mediaStreamManagerList) => from(mediaStreamManagerList)),
         tap((mediaStreamManager) => {
           mediaStreamManager.clear()
         }),
