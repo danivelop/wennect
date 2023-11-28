@@ -101,10 +101,10 @@ class SocketService {
   }
 
   iceCandidate(socket: Socket) {
-    socket.on(SOCKET.EVENT.ICE_CANDIDATE, (remoteId: string, iceCandidate) => {
+    socket.on(SOCKET.EVENT.ICECANDIDATE, (remoteId: string, icecandidate) => {
       this.io
         .to(remoteId)
-        .emit(SOCKET.EVENT.ICE_CANDIDATE, socket.id, iceCandidate)
+        .emit(SOCKET.EVENT.ICECANDIDATE, socket.id, icecandidate)
     })
   }
 }

@@ -1,5 +1,5 @@
-import { from, of, fromEvent } from 'rxjs'
-import { tap, map, filter, switchMap, take } from 'rxjs/operators'
+import { BehaviorSubject, Subscription, from, of, fromEvent, merge } from 'rxjs'
+import { tap, filter, switchMap, take } from 'rxjs/operators'
 
 import SocketService from '@/services/SocketService'
 
@@ -12,9 +12,18 @@ class RemoteParticipant {
 
   private peerConnection: RTCPeerConnection
 
+  private mediaStreamList$: BehaviorSubject<MediaStream[]>
+
+  private subscription: Subscription
+
   constructor(id: string) {
     this.id = id
     this.peerConnection = new RTCPeerConnection()
+    this.mediaStreamList$ = new BehaviorSubject<MediaStream[]>([])
+    this.subscription = new Subscription()
+
+    this.subscription.add(this.handleTrack().subscribe())
+    this.subscription.add(this.handleIcecandidate$().subscribe())
   }
 
   createOffer$() {
@@ -34,9 +43,11 @@ class RemoteParticipant {
               SOCKET.EVENT.ANSWER,
             ).pipe(
               take(1),
-              switchMap(([, remoteSessionDescription]) =>
-                this.receivedAnswer$(remoteSessionDescription),
-              ),
+              tap(([, remoteSessionDescription]) => {
+                this.peerConnection.setRemoteDescription(
+                  remoteSessionDescription,
+                )
+              }),
             ),
           ),
         ),
@@ -47,10 +58,12 @@ class RemoteParticipant {
   createAnswer$(remoteSessionDescription: RTCSessionDescriptionInit) {
     return of(SocketService.socket).pipe(
       filter((socket): socket is Socket => !!socket),
+      tap(() => {
+        this.peerConnection.setRemoteDescription(remoteSessionDescription)
+      }),
       switchMap((socket) =>
         from(this.peerConnection.createAnswer()).pipe(
           tap((localSessionDescription) => {
-            this.peerConnection.setRemoteDescription(remoteSessionDescription)
             this.peerConnection.setLocalDescription(localSessionDescription)
           }),
           tap((localSessionDescription) => {
@@ -61,13 +74,65 @@ class RemoteParticipant {
     )
   }
 
-  receivedAnswer$(remoteSessionDescription: RTCSessionDescriptionInit) {
-    return of(this.peerConnection).pipe(
-      tap((peerConnection) => {
-        peerConnection.setRemoteDescription(remoteSessionDescription)
+  handleTrack() {
+    return fromEvent<RTCTrackEvent>(this.peerConnection, 'track').pipe(
+      tap((event) => {
+        const { streams } = event
+        streams.forEach((stream) => {
+          const currentMediaStream = this.mediaStreamList$.value.find(
+            (mediaStream) => mediaStream.id === stream.id,
+          )
+          if (currentMediaStream) {
+            currentMediaStream.addTrack(event.track)
+          } else {
+            this.mediaStreamList$.next([...this.mediaStreamList$.value, stream])
+          }
+        })
       }),
-      map(() => this),
     )
+  }
+
+  handleIcecandidate$() {
+    return of(SocketService.socket).pipe(
+      filter((socket): socket is Socket => !!socket),
+      switchMap((socket) =>
+        merge(
+          fromEvent<RTCPeerConnectionIceEvent>(
+            this.peerConnection,
+            'icecandidate',
+          ).pipe(
+            take(1),
+            tap((event) => {
+              const { candidate } = event
+              if (candidate) {
+                socket.emit(SOCKET.EVENT.ICECANDIDATE, this.id, candidate)
+              }
+            }),
+          ),
+          fromEvent<[string, RTCIceCandidate]>(
+            socket,
+            SOCKET.EVENT.ICECANDIDATE,
+          ).pipe(
+            take(1),
+            tap(([, candidate]) => {
+              this.peerConnection.addIceCandidate(candidate)
+            }),
+          ),
+        ),
+      ),
+    )
+  }
+
+  clear() {
+    this.peerConnection.getSenders().forEach((sender) => {
+      this.peerConnection.removeTrack(sender)
+    })
+    this.peerConnection.close()
+    this.mediaStreamList$.value.forEach((mediaStram) => {
+      mediaStram.getTracks().forEach((track) => track.stop())
+    })
+    this.subscription.unsubscribe()
+    this.mediaStreamList$.complete()
   }
 }
 

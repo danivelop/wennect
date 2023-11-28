@@ -6,6 +6,6 @@ export const SOCKET = {
     WITHDRAW: 'withdraw',
     OFFER: 'offer',
     ANSWER: 'answer',
-    ICE_CANDIDATE: 'iceCandidate',
+    ICECANDIDATE: 'icecandidate',
   },
 } as const

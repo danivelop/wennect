@@ -7,7 +7,7 @@ export const SOCKET = {
     WITHDRAW: 'withdraw',
     OFFER: 'offer',
     ANSWER: 'answer',
-    ICE_CANDIDATE: 'iceCandidate',
+    ICECANDIDATE: 'icecandidate',
   },
   DISCONNECTION_REASON: {
     TRANSPORT_CLOSE: 'transport close',
