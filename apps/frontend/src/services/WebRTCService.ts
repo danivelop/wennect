@@ -36,6 +36,43 @@ class WebRTCService {
 
   enterSubscription: Subscription | null = null
 
+  static requestParticipate$(remoteId: string) {
+    return of(SocketService.socket).pipe(
+      filter((socket): socket is Socket => !!socket),
+      tap((socket) => {
+        socket.emit(SOCKET.EVENT.PARTICIPATE, remoteId)
+      }),
+    )
+  }
+
+  requestWithdraw$(remoteId: string) {
+    return of(SocketService.socket).pipe(
+      filter((socket): socket is Socket => !!socket),
+      tap((socket) => {
+        socket.emit(SOCKET.EVENT.WITHDRAW, remoteId)
+      }),
+      switchMap(() => this.removeParticipant$(remoteId)),
+    )
+  }
+
+  removeParticipant$(remoteId: string) {
+    return of(this.remoteParticipants$.value).pipe(
+      tap((remoteParticipants) => {
+        const targetParticipant = remoteParticipants.find(
+          (remoteParticipant) => remoteParticipant.id === remoteId,
+        )
+        const filteredRemoteParticipants = remoteParticipants.filter(
+          (remoteParticipant) => remoteParticipant !== targetParticipant,
+        )
+
+        if (targetParticipant) {
+          targetParticipant.clear()
+        }
+        this.remoteParticipants$.next(filteredRemoteParticipants)
+      }),
+    )
+  }
+
   initializeLocalParticipant$(localId: string) {
     return of(new LocalParticipant(localId)).pipe(
       tap((localParticipant) => {
@@ -98,8 +135,11 @@ class WebRTCService {
           ),
           from(remoteIds).pipe(
             tap((remoteId) => {
-              socket.emit(SOCKET.EVENT.PARTICIPATE, remoteId)
+              WebRTCService.requestParticipate$(remoteId)
             }),
+          ),
+          fromEvent<string>(socket, SOCKET.EVENT.WITHDRAW).pipe(
+            mergeMap((remoteId) => this.removeParticipant$(remoteId)),
           ),
         ),
       ),
@@ -125,6 +165,8 @@ class WebRTCService {
         ),
       )
       .subscribe()
+
+    // TODO: beforeunload때 exit() 호출
   }
 
   exit() {
@@ -147,6 +189,10 @@ class WebRTCService {
       SocketService.socket.emit(SOCKET.EVENT.LEAVE, 'room1')
     }
     SocketService.clear()
+
+    this.remoteParticipants$.value.forEach((remoteParticipant) => {
+      this.removeParticipant$(remoteParticipant.id)
+    })
   }
 
   addLocalDisplayMediaStreamManager() {

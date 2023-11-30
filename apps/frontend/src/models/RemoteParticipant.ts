@@ -8,7 +8,7 @@ import { SOCKET } from '@/constants/Socket'
 import type { Socket } from 'socket.io-client'
 
 class RemoteParticipant {
-  private id: string
+  id: string
 
   private peerConnection: RTCPeerConnection
 
@@ -22,7 +22,7 @@ class RemoteParticipant {
     this.mediaStreamList$ = new BehaviorSubject<MediaStream[]>([])
     this.subscription = new Subscription()
 
-    this.subscription.add(this.handleTrack().subscribe())
+    this.subscription.add(this.handleTrack$().subscribe())
     this.subscription.add(this.handleIcecandidate$().subscribe())
   }
 
@@ -74,7 +74,7 @@ class RemoteParticipant {
     )
   }
 
-  handleTrack() {
+  handleTrack$() {
     return fromEvent<RTCTrackEvent>(this.peerConnection, 'track').pipe(
       tap((event) => {
         const { streams } = event
