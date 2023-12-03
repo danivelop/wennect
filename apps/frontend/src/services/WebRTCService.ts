@@ -72,6 +72,7 @@ class WebRTCService {
   }
 
   initializeLocalParticipant$(localId: string) {
+    console.log('localId', localId)
     return concat(of(new LocalParticipant(localId)), NEVER).pipe(
       tap((localParticipant) => {
         this.localParticipant$.next(localParticipant)
@@ -80,7 +81,7 @@ class WebRTCService {
         forkJoin([
           concat(
             localParticipant
-              .setVideoEnabled$(false)
+              .setVideoEnabled$(true)
               .pipe(catchError(() => EMPTY)),
             localParticipant
               .setAudioEnabled$(false)
@@ -128,56 +129,90 @@ class WebRTCService {
             ),
           ).pipe(
             mergeMap((remoteParticipant) =>
-              fromEvent(
-                remoteParticipant.peerConnection,
-                'connectionstatechange',
-              ).pipe(
-                mergeMap(() => {
-                  switch (remoteParticipant.peerConnection.connectionState) {
-                    case 'connected':
-                      return of(this.remoteParticipants$.value).pipe(
-                        tap((remoteParticipants) => {
-                          this.remoteParticipants$.next([
-                            ...remoteParticipants,
-                            remoteParticipant,
-                          ])
-                        }),
-                      )
-                    case 'disconnected':
-                      return EMPTY
-                    case 'failed':
-                      return this.requestWithdraw$(remoteParticipant.id)
-                    case 'closed':
-                      return of(this.remoteParticipants$.value).pipe(
-                        tap((remoteParticipants) => {
-                          this.remoteParticipants$.next(
-                            remoteParticipants.filter(
-                              (rp) => rp !== remoteParticipant,
-                            ),
-                          )
-                        }),
-                      )
-                    default:
-                      return EMPTY
-                  }
-                }),
-                takeUntil(
-                  fromEvent(
-                    remoteParticipant.peerConnection,
-                    'connectionstatechange',
-                  ).pipe(
-                    filter(
-                      () =>
-                        remoteParticipant.peerConnection.connectionState ===
-                        'closed',
+              merge(
+                fromEvent(
+                  remoteParticipant.peerConnection,
+                  'connectionstatechange',
+                ).pipe(
+                  mergeMap(() => {
+                    console.log(
+                      'connectionState',
+                      remoteParticipant.peerConnection.connectionState,
+                    )
+                    switch (remoteParticipant.peerConnection.connectionState) {
+                      case 'connected':
+                        return merge(
+                          of(this.remoteParticipants$.value).pipe(
+                            tap((remoteParticipants) => {
+                              this.remoteParticipants$.next([
+                                ...remoteParticipants,
+                                remoteParticipant,
+                              ])
+                            }),
+                          ),
+                        )
+
+                      case 'disconnected':
+                        return EMPTY
+                      case 'failed':
+                        return this.requestWithdraw$(remoteParticipant.id)
+                      case 'closed':
+                        return of(this.remoteParticipants$.value).pipe(
+                          tap((remoteParticipants) => {
+                            this.remoteParticipants$.next(
+                              remoteParticipants.filter(
+                                (rp) => rp !== remoteParticipant,
+                              ),
+                            )
+                          }),
+                        )
+                      default:
+                        return EMPTY
+                    }
+                  }),
+                  takeUntil(
+                    fromEvent(
+                      remoteParticipant.peerConnection,
+                      'connectionstatechange',
+                    ).pipe(
+                      filter(
+                        () =>
+                          remoteParticipant.peerConnection.connectionState ===
+                          'closed',
+                      ),
                     ),
                   ),
+                ),
+                this.localParticipant$.pipe(
+                  filter(
+                    (localParticipant): localParticipant is LocalParticipant =>
+                      !!localParticipant,
+                  ),
+                  switchMap((localParticipant) =>
+                    localParticipant.observeMediaStreamManagerList$(),
+                  ),
+                  switchMap((mediaStreamManagerList) =>
+                    from(mediaStreamManagerList),
+                  ),
+                  tap((mediaStreamManager) => {
+                    console.log('track add')
+                    mediaStreamManager.mediaStream
+                      .getTracks()
+                      .forEach((track) => {
+                        console.log('track', track)
+                        remoteParticipant.peerConnection.addTrack(
+                          track,
+                          mediaStreamManager.mediaStream,
+                        )
+                      })
+                  }),
                 ),
               ),
             ),
           ),
           fromEvent<string>(socket, SOCKET.EVENT.WITHDRAW).pipe(
             mergeMap((remoteId) => this.getRemoteParticipant$(remoteId)),
+            tap(() => console.log('withdraw')),
             tap((remoteParticipant) => {
               remoteParticipant.clear()
             }),
@@ -189,6 +224,14 @@ class WebRTCService {
 
   enter() {
     SocketService.connect()
+    this.remoteParticipants$.subscribe((remoteParticipants) => {
+      console.log(
+        'remoteStreams',
+        remoteParticipants.map(
+          (remoteParticipant) => remoteParticipant.mediaStreamList$.value,
+        ),
+      )
+    })
     const subscription = merge(
       concat(of(SocketService.socket), NEVER).pipe(
         filter((socket): socket is Socket => !!socket),
@@ -203,23 +246,27 @@ class WebRTCService {
             this.initializeLocalParticipant$(localId),
             this.initializeRemoteParticipants$(),
             from(remoteIds).pipe(
-              tap((remoteId) => {
-                WebRTCService.requestParticipate$(remoteId)
-              }),
+              mergeMap((remoteId) =>
+                WebRTCService.requestParticipate$(remoteId),
+              ),
             ),
           ),
         ),
         finalize(() => {
           if (SocketService.socket) {
             SocketService.socket.emit(SOCKET.EVENT.LEAVE, 'room1')
+            this.remoteParticipants$.value.forEach((remoteParticipant) => {
+              if (SocketService.socket) {
+                SocketService.socket.emit(
+                  SOCKET.EVENT.WITHDRAW,
+                  remoteParticipant.id,
+                )
+              }
+            })
           }
           SocketService.clear()
 
           this.removeLocalDisplayMediaStreamManager()
-
-          this.remoteParticipants$.value.forEach((remoteParticipant) => {
-            remoteParticipant.clear()
-          })
 
           this.remoteParticipants$.next([])
         }),

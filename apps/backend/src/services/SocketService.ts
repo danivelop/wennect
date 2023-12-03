@@ -25,6 +25,7 @@ class SocketService {
         socket.id,
         Array.from(this.participants.keys()),
       )
+      console.log('participants', Array.from(this.participants.keys()))
       this.participants.set(socket.id, new Set())
     })
   }
@@ -68,8 +69,11 @@ class SocketService {
 
   withdraw(socket: Socket) {
     socket.on(SOCKET.EVENT.WITHDRAW, (remoteId: string) => {
+      console.log('WITHDRAW', socket.id, remoteId)
       const sourceParticipants = this.participants.get(socket.id)
       const targetParticipants = this.participants.get(remoteId)
+      console.log('sourceParticipants', sourceParticipants)
+      console.log('targetParticipants', targetParticipants)
 
       if (
         sourceParticipants &&

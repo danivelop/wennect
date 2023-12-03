@@ -20,7 +20,7 @@ class RemoteParticipant {
 
   peerConnection: RTCPeerConnection
 
-  private mediaStreamList$: BehaviorSubject<MediaStream[]>
+  mediaStreamList$: BehaviorSubject<MediaStream[]>
 
   private subscription: Subscription
 
@@ -43,6 +43,7 @@ class RemoteParticipant {
             this.peerConnection.setLocalDescription(localSessionDescription)
           }),
           tap((localSessionDescription) => {
+            console.log('will offer', this.id, localSessionDescription)
             socket.emit(SOCKET.EVENT.OFFER, this.id, localSessionDescription)
           }),
           switchMap(() =>
@@ -52,8 +53,13 @@ class RemoteParticipant {
             ).pipe(
               filter(([remoteId]) => remoteId === this.id),
               tap(([, remoteSessionDescription]) => {
-                this.peerConnection.setRemoteDescription(
+                console.log(
+                  'received answer',
+                  this.id,
                   remoteSessionDescription,
+                )
+                this.peerConnection.setRemoteDescription(
+                  new RTCSessionDescription(remoteSessionDescription),
                 )
               }),
             ),
@@ -68,7 +74,10 @@ class RemoteParticipant {
     return of(SocketService.socket).pipe(
       filter((socket): socket is Socket => !!socket),
       tap(() => {
-        this.peerConnection.setRemoteDescription(remoteSessionDescription)
+        console.log('received offer', this.id, remoteSessionDescription)
+        this.peerConnection.setRemoteDescription(
+          new RTCSessionDescription(remoteSessionDescription),
+        )
       }),
       switchMap((socket) =>
         from(this.peerConnection.createAnswer()).pipe(
@@ -76,6 +85,7 @@ class RemoteParticipant {
             this.peerConnection.setLocalDescription(localSessionDescription)
           }),
           tap((localSessionDescription) => {
+            console.log('will answer', this.id, localSessionDescription)
             socket.emit(SOCKET.EVENT.ANSWER, this.id, localSessionDescription)
           }),
         ),
@@ -87,13 +97,20 @@ class RemoteParticipant {
   handleTrack$() {
     return fromEvent<RTCTrackEvent>(this.peerConnection, 'track').pipe(
       tap((event) => {
+        console.log('track event', event)
         const { streams } = event
         streams.forEach((stream) => {
           const currentMediaStream = this.mediaStreamList$.value.find(
             (mediaStream) => mediaStream.id === stream.id,
           )
           if (currentMediaStream) {
-            currentMediaStream.addTrack(event.track)
+            const currentTrack = currentMediaStream
+              .getTracks()
+              .find((track) => track.id === event.track.id)
+
+            if (!currentTrack) {
+              currentMediaStream.addTrack(event.track)
+            }
           } else {
             this.mediaStreamList$.next([...this.mediaStreamList$.value, stream])
           }
@@ -112,6 +129,7 @@ class RemoteParticipant {
             'icecandidate',
           ).pipe(
             tap((event) => {
+              console.log('event', event)
               const { candidate } = event
               if (candidate) {
                 socket.emit(SOCKET.EVENT.ICECANDIDATE, this.id, candidate)
