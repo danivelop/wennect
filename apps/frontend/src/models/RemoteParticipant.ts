@@ -1,5 +1,13 @@
-import { BehaviorSubject, Subscription, from, of, fromEvent, merge } from 'rxjs'
-import { tap, filter, switchMap, take } from 'rxjs/operators'
+import {
+  BehaviorSubject,
+  Subscription,
+  EMPTY,
+  from,
+  of,
+  fromEvent,
+  merge,
+} from 'rxjs'
+import { tap, filter, switchMap } from 'rxjs/operators'
 
 import SocketService from '@/services/SocketService'
 
@@ -10,7 +18,7 @@ import type { Socket } from 'socket.io-client'
 class RemoteParticipant {
   id: string
 
-  private peerConnection: RTCPeerConnection
+  peerConnection: RTCPeerConnection
 
   private mediaStreamList$: BehaviorSubject<MediaStream[]>
 
@@ -42,7 +50,7 @@ class RemoteParticipant {
               socket,
               SOCKET.EVENT.ANSWER,
             ).pipe(
-              take(1),
+              filter(([remoteId]) => remoteId === this.id),
               tap(([, remoteSessionDescription]) => {
                 this.peerConnection.setRemoteDescription(
                   remoteSessionDescription,
@@ -52,6 +60,7 @@ class RemoteParticipant {
           ),
         ),
       ),
+      switchMap(() => EMPTY),
     )
   }
 
@@ -71,6 +80,7 @@ class RemoteParticipant {
           }),
         ),
       ),
+      switchMap(() => EMPTY),
     )
   }
 
@@ -101,7 +111,6 @@ class RemoteParticipant {
             this.peerConnection,
             'icecandidate',
           ).pipe(
-            take(1),
             tap((event) => {
               const { candidate } = event
               if (candidate) {
@@ -113,7 +122,7 @@ class RemoteParticipant {
             socket,
             SOCKET.EVENT.ICECANDIDATE,
           ).pipe(
-            take(1),
+            filter(([remoteId]) => remoteId === this.id),
             tap(([, candidate]) => {
               this.peerConnection.addIceCandidate(candidate)
             }),

@@ -2,6 +2,7 @@ import {
   BehaviorSubject,
   of,
   EMPTY,
+  NEVER,
   fromEvent,
   merge,
   concat,
@@ -10,11 +11,14 @@ import {
 } from 'rxjs'
 import {
   tap,
+  map,
   take,
   filter,
   switchMap,
   mergeMap,
   catchError,
+  finalize,
+  takeUntil,
 } from 'rxjs/operators'
 
 import SocketService from '@/services/SocketService'
@@ -24,7 +28,6 @@ import LocalParticipant from '@/models/LocalParticipant'
 import RemoteParticipant from '@/models/RemoteParticipant'
 
 import type MediaStreamManager from '@/models/MediaStreamManager'
-import type { Subscription } from 'rxjs'
 import type { Socket } from 'socket.io-client'
 
 class WebRTCService {
@@ -33,8 +36,6 @@ class WebRTCService {
   remoteParticipants$ = new BehaviorSubject<RemoteParticipant[]>([])
 
   localDisplayMediaStreamManager: MediaStreamManager | null = null
-
-  enterSubscription: Subscription | null = null
 
   static requestParticipate$(remoteId: string) {
     return of(SocketService.socket).pipe(
@@ -51,30 +52,27 @@ class WebRTCService {
       tap((socket) => {
         socket.emit(SOCKET.EVENT.WITHDRAW, remoteId)
       }),
-      switchMap(() => this.removeParticipant$(remoteId)),
-    )
-  }
-
-  removeParticipant$(remoteId: string) {
-    return of(this.remoteParticipants$.value).pipe(
-      tap((remoteParticipants) => {
-        const targetParticipant = remoteParticipants.find(
-          (remoteParticipant) => remoteParticipant.id === remoteId,
-        )
-        const filteredRemoteParticipants = remoteParticipants.filter(
-          (remoteParticipant) => remoteParticipant !== targetParticipant,
-        )
-
-        if (targetParticipant) {
-          targetParticipant.clear()
-        }
-        this.remoteParticipants$.next(filteredRemoteParticipants)
+      switchMap(() => this.getRemoteParticipant$(remoteId)),
+      tap((remoteParticipant) => {
+        remoteParticipant.clear()
       }),
     )
   }
 
+  getRemoteParticipant$(remoteId: string) {
+    return of(this.remoteParticipants$.value).pipe(
+      map((remoteParticipants) =>
+        remoteParticipants.find((rp) => rp.id === remoteId),
+      ),
+      filter(
+        (remoteParticipant): remoteParticipant is RemoteParticipant =>
+          !!remoteParticipant,
+      ),
+    )
+  }
+
   initializeLocalParticipant$(localId: string) {
-    return of(new LocalParticipant(localId)).pipe(
+    return concat(of(new LocalParticipant(localId)), NEVER).pipe(
       tap((localParticipant) => {
         this.localParticipant$.next(localParticipant)
       }),
@@ -90,56 +88,99 @@ class WebRTCService {
           ),
         ]),
       ),
-      switchMap(() => EMPTY),
-      catchError(() => EMPTY),
+      finalize(() => {
+        const localParticipant = this.localParticipant$.value
+
+        if (localParticipant) {
+          localParticipant.clear()
+          this.localParticipant$.next(null)
+        }
+      }),
     )
   }
 
-  initializeRemoteParticipants$(remoteIds: string[]) {
+  initializeRemoteParticipants$() {
     return of(SocketService.socket).pipe(
       filter((socket): socket is Socket => !!socket),
       switchMap((socket) =>
         merge(
-          fromEvent<[string, RTCSessionDescriptionInit]>(
-            socket,
-            SOCKET.EVENT.OFFER,
-          ).pipe(
-            mergeMap(([remoteId, remoteSessionDescription]) =>
-              of(new RemoteParticipant(remoteId)).pipe(
-                tap((remoteParticipant) => {
-                  this.remoteParticipants$.next([
-                    ...this.remoteParticipants$.value,
-                    remoteParticipant,
-                  ])
-                }),
-                switchMap((remoteParticipant) =>
+          merge(
+            fromEvent<[string, RTCSessionDescriptionInit]>(
+              socket,
+              SOCKET.EVENT.OFFER,
+            ).pipe(
+              mergeMap(([remoteId, remoteSessionDescription]) => {
+                const remoteParticipant = new RemoteParticipant(remoteId)
+                return concat(
+                  of(remoteParticipant),
                   remoteParticipant.createAnswer$(remoteSessionDescription),
-                ),
-              ),
+                )
+              }),
             ),
-          ),
-          fromEvent<string>(socket, SOCKET.EVENT.PARTICIPATE).pipe(
-            mergeMap((remoteId) =>
-              of(new RemoteParticipant(remoteId)).pipe(
-                tap((remoteParticipant) => {
-                  this.remoteParticipants$.next([
-                    ...this.remoteParticipants$.value,
-                    remoteParticipant,
-                  ])
-                }),
-                switchMap((remoteParticipant) =>
+            fromEvent<string>(socket, SOCKET.EVENT.PARTICIPATE).pipe(
+              mergeMap((remoteId) => {
+                const remoteParticipant = new RemoteParticipant(remoteId)
+                return concat(
+                  of(remoteParticipant),
                   remoteParticipant.createOffer$(),
+                )
+              }),
+            ),
+          ).pipe(
+            mergeMap((remoteParticipant) =>
+              fromEvent(
+                remoteParticipant.peerConnection,
+                'connectionstatechange',
+              ).pipe(
+                mergeMap(() => {
+                  switch (remoteParticipant.peerConnection.connectionState) {
+                    case 'connected':
+                      return of(this.remoteParticipants$.value).pipe(
+                        tap((remoteParticipants) => {
+                          this.remoteParticipants$.next([
+                            ...remoteParticipants,
+                            remoteParticipant,
+                          ])
+                        }),
+                      )
+                    case 'disconnected':
+                      return EMPTY
+                    case 'failed':
+                      return this.requestWithdraw$(remoteParticipant.id)
+                    case 'closed':
+                      return of(this.remoteParticipants$.value).pipe(
+                        tap((remoteParticipants) => {
+                          this.remoteParticipants$.next(
+                            remoteParticipants.filter(
+                              (rp) => rp !== remoteParticipant,
+                            ),
+                          )
+                        }),
+                      )
+                    default:
+                      return EMPTY
+                  }
+                }),
+                takeUntil(
+                  fromEvent(
+                    remoteParticipant.peerConnection,
+                    'connectionstatechange',
+                  ).pipe(
+                    filter(
+                      () =>
+                        remoteParticipant.peerConnection.connectionState ===
+                        'closed',
+                    ),
+                  ),
                 ),
               ),
             ),
-          ),
-          from(remoteIds).pipe(
-            tap((remoteId) => {
-              WebRTCService.requestParticipate$(remoteId)
-            }),
           ),
           fromEvent<string>(socket, SOCKET.EVENT.WITHDRAW).pipe(
-            mergeMap((remoteId) => this.removeParticipant$(remoteId)),
+            mergeMap((remoteId) => this.getRemoteParticipant$(remoteId)),
+            tap((remoteParticipant) => {
+              remoteParticipant.clear()
+            }),
           ),
         ),
       ),
@@ -148,8 +189,8 @@ class WebRTCService {
 
   enter() {
     SocketService.connect()
-    this.enterSubscription = of(SocketService.socket)
-      .pipe(
+    const subscription = merge(
+      concat(of(SocketService.socket), NEVER).pipe(
         filter((socket): socket is Socket => !!socket),
         tap((socket) => {
           socket.emit(SOCKET.EVENT.JOIN, 'room1')
@@ -160,39 +201,37 @@ class WebRTCService {
         switchMap(([localId, remoteIds]) =>
           merge(
             this.initializeLocalParticipant$(localId),
-            this.initializeRemoteParticipants$(remoteIds),
+            this.initializeRemoteParticipants$(),
+            from(remoteIds).pipe(
+              tap((remoteId) => {
+                WebRTCService.requestParticipate$(remoteId)
+              }),
+            ),
           ),
         ),
-      )
-      .subscribe()
+        finalize(() => {
+          if (SocketService.socket) {
+            SocketService.socket.emit(SOCKET.EVENT.LEAVE, 'room1')
+          }
+          SocketService.clear()
 
-    // TODO: beforeunload때 exit() 호출
-  }
+          this.removeLocalDisplayMediaStreamManager()
 
-  exit() {
-    this.removeLocalDisplayMediaStreamManager()
-    this.getLocalParticipant$()
-      .pipe(
-        tap((localParticipant) => {
-          localParticipant.clear()
-          this.localParticipant$.next(null)
+          this.remoteParticipants$.value.forEach((remoteParticipant) => {
+            remoteParticipant.clear()
+          })
+
+          this.remoteParticipants$.next([])
         }),
-      )
-      .subscribe()
+      ),
+      fromEvent(window, 'beforeunload').pipe(
+        tap(() => {
+          subscription.unsubscribe()
+        }),
+      ),
+    ).subscribe()
 
-    if (this.enterSubscription) {
-      this.enterSubscription.unsubscribe()
-      this.enterSubscription = null
-    }
-
-    if (SocketService.socket) {
-      SocketService.socket.emit(SOCKET.EVENT.LEAVE, 'room1')
-    }
-    SocketService.clear()
-
-    this.remoteParticipants$.value.forEach((remoteParticipant) => {
-      this.removeParticipant$(remoteParticipant.id)
-    })
+    return subscription
   }
 
   addLocalDisplayMediaStreamManager() {

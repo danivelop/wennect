@@ -76,10 +76,10 @@ function LocalVideo() {
   }
 
   useEffect(() => {
-    WebRTCService.enter()
+    const subscription = WebRTCService.enter()
 
     return () => {
-      WebRTCService.exit()
+      subscription.unsubscribe()
     }
   }, [])
 
