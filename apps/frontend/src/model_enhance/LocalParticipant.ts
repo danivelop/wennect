@@ -6,8 +6,17 @@ import {
   forkJoin,
   merge,
   fromEvent,
+  EMPTY,
 } from 'rxjs'
-import { map, tap, switchMap, filter, takeUntil, take } from 'rxjs/operators'
+import {
+  map,
+  tap,
+  switchMap,
+  mergeMap,
+  filter,
+  takeUntil,
+  take,
+} from 'rxjs/operators'
 
 interface TTrackNotifier {
   mediaStream: MediaStream
@@ -41,43 +50,63 @@ class LocalParticipant {
     this.removeTrackNotifier$ = new Subject<TTrackNotifier>()
     this.enableTrackNotifier$ = new Subject<MediaStream>()
 
-    this.addMediaStreamNotifier$.subscribe((mediaStream) => {
-      this.mediaStreamList$.next([...this.mediaStreamList$.value, mediaStream])
-      mediaStream.getTracks().forEach((track) => {
-        this.addTrackNotifier$.next({ mediaStream, track })
-      })
-    })
+    this.handleNotifier$().subscribe()
+  }
 
-    this.removeMediaStreamNotifier$.subscribe((mediaStream) => {
-      this.mediaStreamList$.next(
-        this.mediaStreamList$.value.filter((ms) => ms.id !== mediaStream.id),
-      )
-      mediaStream.getTracks().forEach((track) => {
-        track.stop()
-        this.removeTrackNotifier$.next({ mediaStream, track })
-      })
-    })
-
-    this.addTrackNotifier$.subscribe(({ mediaStream, track }) => {
-      this.trackList$.next([...this.trackList$.value, track])
-
-      fromEvent(track, 'ended')
-        .pipe(take(1))
-        .subscribe(() => {
-          this.removeTrackNotifier$.next({ mediaStream, track })
-
-          if (mediaStream.getTracks().length === 0) {
+  private handleNotifier$() {
+    return merge(
+      this.addMediaStreamNotifier$.pipe(
+        tap((mediaStream) => {
+          this.mediaStreamList$.next([
+            ...this.mediaStreamList$.value,
+            mediaStream,
+          ])
+        }),
+        switchMap((mediaStream) =>
+          from(mediaStream.getTracks()).pipe(
+            map((track) => ({ mediaStream, track })),
+          ),
+        ),
+      ),
+      this.removeMediaStreamNotifier$.pipe(
+        tap((mediaStream) => {
+          this.mediaStreamList$.next(
+            this.mediaStreamList$.value.filter(
+              (ms) => ms.id !== mediaStream.id,
+            ),
+          )
+          mediaStream.getTracks().forEach((track) => {
+            track.stop()
+          })
+        }),
+        switchMap(() => EMPTY),
+      ),
+      this.addTrackNotifier$.pipe(
+        tap(({ mediaStream, track }) => {
+          mediaStream.addTrack(track)
+        }),
+      ),
+    ).pipe(
+      tap(({ track }) => {
+        this.trackList$.next([...this.trackList$.value, track])
+      }),
+      mergeMap(({ mediaStream, track }) =>
+        fromEvent(track, 'ended').pipe(
+          take(1),
+          tap(() => {
+            mediaStream.removeTrack(track)
+            this.removeTrackNotifier$.next({ mediaStream, track })
+            this.trackList$.next(
+              this.trackList$.value.filter((t) => t.id !== track.id),
+            )
+          }),
+          filter(() => mediaStream.getTracks().length === 0),
+          tap(() => {
             this.removeMediaStreamNotifier$.next(mediaStream)
-          }
-        })
-    })
-
-    this.removeTrackNotifier$.subscribe(({ mediaStream, track }) => {
-      mediaStream.removeTrack(track)
-      this.trackList$.next(
-        this.trackList$.value.filter((t) => t.id !== track.id),
-      )
-    })
+          }),
+        ),
+      ),
+    )
   }
 
   static isVideoEnabled(mediaStream: MediaStream) {
@@ -106,7 +135,6 @@ class LocalParticipant {
       map((ms) => ms.getTracks()),
       tap((tracks) => {
         tracks.forEach((track) => {
-          mediaStream.addTrack(track)
           this.addTrackNotifier$.next({ mediaStream, track })
         })
       }),
