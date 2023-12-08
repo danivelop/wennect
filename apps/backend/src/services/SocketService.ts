@@ -17,16 +17,31 @@ class SocketService {
     })
   }
 
+  initialize() {
+    this.io.on('connection', (socket: Socket) => {
+      this.join(socket)
+      this.leave(socket)
+      this.getParticipants(socket)
+      this.participate(socket)
+      this.withdraw(socket)
+      this.offer(socket)
+      this.answer(socket)
+      this.iceCandidate(socket)
+    })
+  }
+
   join(socket: Socket) {
     socket.on(SOCKET.EVENT.JOIN, (roomId: string) => {
       socket.join(roomId)
-      socket.emit(
-        SOCKET.EVENT.JOIN,
-        socket.id,
-        Array.from(this.participants.keys()),
-      )
-      console.log('participants', Array.from(this.participants.keys()))
+      socket.emit(SOCKET.EVENT.JOIN, socket.id)
       this.participants.set(socket.id, new Set())
+    })
+  }
+
+  // 임시 로직. 추후에는 rest api로 대체 필요
+  getParticipants(socket: Socket) {
+    socket.on('participants', () => {
+      socket.emit('participants', Array.from(this.participants.keys()))
     })
   }
 
@@ -34,18 +49,6 @@ class SocketService {
     socket.on(SOCKET.EVENT.LEAVE, (roomId: string) => {
       socket.leave(roomId)
       this.participants.delete(socket.id)
-    })
-  }
-
-  initialize() {
-    this.io.on('connection', (socket: Socket) => {
-      this.join(socket)
-      this.leave(socket)
-      this.participate(socket)
-      this.withdraw(socket)
-      this.offer(socket)
-      this.answer(socket)
-      this.iceCandidate(socket)
     })
   }
 
@@ -69,11 +72,8 @@ class SocketService {
 
   withdraw(socket: Socket) {
     socket.on(SOCKET.EVENT.WITHDRAW, (remoteId: string) => {
-      console.log('WITHDRAW', socket.id, remoteId)
       const sourceParticipants = this.participants.get(socket.id)
       const targetParticipants = this.participants.get(remoteId)
-      console.log('sourceParticipants', sourceParticipants)
-      console.log('targetParticipants', targetParticipants)
 
       if (
         sourceParticipants &&

@@ -3,10 +3,9 @@ import styled from 'styled-components'
 
 import WebRTCService from '@/services/WebRTCService'
 
-import { MEDIA_STREAM } from '@/constants/MediaStream'
-import useLocalParticipant from '@/hooks/useLocalParticipant'
-import useMediaStreamManager from '@/hooks/useMediaStreamManager'
-import useTrackEnabled from '@/hooks/useTrackEnabled'
+import useMediaStream from '@/hooks/useMediaStream'
+import useTrack from '@/hooks/useTrack'
+import { MEDIA_STREAM_KIND } from '@/models/LocalParticipant'
 
 const Layout = styled.div`
   display: flex;
@@ -43,35 +42,24 @@ function LocalVideo() {
   const localUserVideoElementRef = useRef<HTMLVideoElement>(null)
   const localDisplayVideoElementRef = useRef<HTMLVideoElement>(null)
 
-  const localParticipant = useLocalParticipant()
-
-  const localUserMediaStreamManager = useMediaStreamManager({
-    source: MEDIA_STREAM.SOURCE.USER,
+  const localUserMediaStream = useMediaStream({
+    source: MEDIA_STREAM_KIND.USER,
   })[0]
-  const localDisplayMediaStreamManager = useMediaStreamManager({
-    source: MEDIA_STREAM.SOURCE.DISPLAY,
+  const localDisplayMediaStream = useMediaStream({
+    source: MEDIA_STREAM_KIND.DISPLAY,
   })[0]
-  const { isVideoEnabled, isAudioEnabled } = useTrackEnabled(
-    localUserMediaStreamManager,
-  )
-
-  const handleToggleVideo = () => {
-    WebRTCService.setLocalVideoEnabled(!isVideoEnabled)
-  }
-
-  const handleToggleAudio = () => {
-    WebRTCService.setLocalAudioEnabled(!isAudioEnabled)
-  }
+  const {
+    isVideoEnabled,
+    isAudioEnabled,
+    handleToggleVideo,
+    handleToggleAudio,
+  } = useTrack(localUserMediaStream)
 
   const handleScreenShare = () => {
-    if (!localParticipant) {
-      return
-    }
-
-    if (localDisplayMediaStreamManager) {
-      WebRTCService.removeLocalDisplayMediaStreamManager()
+    if (localDisplayMediaStream) {
+      localDisplayMediaStream.getTracks().forEach((track) => track.stop())
     } else {
-      WebRTCService.addLocalDisplayMediaStreamManager()
+      WebRTCService.addLocalDisplayMediaStream()
     }
   }
 
@@ -84,12 +72,11 @@ function LocalVideo() {
   }, [])
 
   useEffect(() => {
-    if (!localUserVideoElementRef.current || !localUserMediaStreamManager) {
+    if (!localUserVideoElementRef.current || !localUserMediaStream) {
       return () => {}
     }
 
-    localUserVideoElementRef.current.srcObject =
-      localUserMediaStreamManager.mediaStream
+    localUserVideoElementRef.current.srcObject = localUserMediaStream
 
     return () => {
       if (localUserVideoElementRef.current) {
@@ -97,18 +84,14 @@ function LocalVideo() {
         localUserVideoElementRef.current.srcObject = null
       }
     }
-  }, [localUserMediaStreamManager])
+  }, [localUserMediaStream])
 
   useEffect(() => {
-    if (
-      !localDisplayVideoElementRef.current ||
-      !localDisplayMediaStreamManager
-    ) {
+    if (!localDisplayVideoElementRef.current || !localDisplayMediaStream) {
       return () => {}
     }
 
-    localDisplayVideoElementRef.current.srcObject =
-      localDisplayMediaStreamManager.mediaStream
+    localDisplayVideoElementRef.current.srcObject = localDisplayMediaStream
 
     return () => {
       if (localDisplayVideoElementRef.current) {
@@ -116,14 +99,14 @@ function LocalVideo() {
         localDisplayVideoElementRef.current.srcObject = null
       }
     }
-  }, [localDisplayMediaStreamManager])
+  }, [localDisplayMediaStream])
 
   return (
     <Layout>
-      {localUserMediaStreamManager && (
+      {localUserMediaStream && (
         <Video ref={localUserVideoElementRef} autoPlay playsInline muted />
       )}
-      {localDisplayMediaStreamManager && (
+      {localDisplayMediaStream && (
         <Video ref={localDisplayVideoElementRef} autoPlay playsInline muted />
       )}
       <ControlButtons>
@@ -134,7 +117,7 @@ function LocalVideo() {
           오디오 toggle
         </ControlButton>
         <ControlButton
-          $enabled={!!localDisplayMediaStreamManager}
+          $enabled={!!localDisplayMediaStream}
           onClick={handleScreenShare}
         >
           화면공유
