@@ -1,7 +1,6 @@
 import {
   BehaviorSubject,
   NEVER,
-  EMPTY,
   merge,
   concat,
   fromEvent,
@@ -79,7 +78,7 @@ class WebRTCService {
             catchError(() =>
               localParticipant
                 .addUserMediaStream$({ audio: true })
-                .pipe(catchError(() => EMPTY)),
+                .pipe(catchError(() => of({}))),
             ),
           ),
         ]).pipe(map(() => localParticipant)),
@@ -93,14 +92,6 @@ class WebRTCService {
         }
       }),
     )
-  }
-
-  addLocalDisplayMediaStream() {
-    const localParticipant = this.localParticipant$.value
-
-    if (localParticipant) {
-      localParticipant.addDisplayMedia$({ video: true }).subscribe()
-    }
   }
 
   observeLocalParticipant$() {

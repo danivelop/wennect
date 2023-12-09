@@ -3,9 +3,8 @@ import styled from 'styled-components'
 
 import WebRTCService from '@/services/WebRTCService'
 
-import useMediaStream from '@/hooks/useMediaStream'
-import useTrack from '@/hooks/useTrack'
-import { MEDIA_STREAM_KIND } from '@/models/LocalParticipant'
+import useLocalMediaStream from '@/hooks/useLocalMediaStream'
+import useLocalTrack from '@/hooks/useLocalTrack'
 
 const Layout = styled.div`
   display: flex;
@@ -42,24 +41,28 @@ function LocalVideo() {
   const localUserVideoElementRef = useRef<HTMLVideoElement>(null)
   const localDisplayVideoElementRef = useRef<HTMLVideoElement>(null)
 
-  const localUserMediaStream = useMediaStream({
-    source: MEDIA_STREAM_KIND.USER,
-  })[0]
-  const localDisplayMediaStream = useMediaStream({
-    source: MEDIA_STREAM_KIND.DISPLAY,
-  })[0]
+  const {
+    localUserMediaStreamList,
+    localDisplayMediaStreamList,
+    handleAddDisplayMediaStream,
+    handleRemoveMediaStream,
+  } = useLocalMediaStream()
+
+  const localUserMediaStream = localUserMediaStreamList[0]
+  const localDisplayMediaStream = localDisplayMediaStreamList[0]
+
   const {
     isVideoEnabled,
     isAudioEnabled,
     handleToggleVideo,
     handleToggleAudio,
-  } = useTrack(localUserMediaStream)
+  } = useLocalTrack(localUserMediaStream)
 
   const handleScreenShare = () => {
     if (localDisplayMediaStream) {
-      localDisplayMediaStream.getTracks().forEach((track) => track.stop())
+      handleRemoveMediaStream(localDisplayMediaStream)
     } else {
-      WebRTCService.addLocalDisplayMediaStream()
+      handleAddDisplayMediaStream({ video: true })
     }
   }
 
@@ -104,7 +107,7 @@ function LocalVideo() {
   return (
     <Layout>
       {localUserMediaStream && (
-        <Video ref={localUserVideoElementRef} autoPlay playsInline muted />
+        <Video ref={localUserVideoElementRef} autoPlay playsInline />
       )}
       {localDisplayMediaStream && (
         <Video ref={localDisplayVideoElementRef} autoPlay playsInline muted />
