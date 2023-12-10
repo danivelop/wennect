@@ -7,6 +7,7 @@ import {
   merge,
   fromEvent,
   iif,
+  defer,
 } from 'rxjs'
 import {
   map,
@@ -260,7 +261,7 @@ class LocalParticipant {
     mediaStream?: MediaStream,
     constraints: Pick<MediaStreamConstraints, 'video'> = { video: true },
   ) {
-    const mediaStream$ = (() => {
+    const getMediaStream$ = () => {
       if (mediaStream) {
         const existMediaStream = this.getMediaStreamById(mediaStream.id)
         if (existMediaStream) {
@@ -275,9 +276,9 @@ class LocalParticipant {
         return of(existMediaStream)
       }
       return this.addUserMediaStream$(constraints)
-    })()
+    }
 
-    return mediaStream$.pipe(
+    return defer(getMediaStream$).pipe(
       switchMap((ms) =>
         this.setTrackEnabled$(enabled, ms.getVideoTracks(), ms, constraints),
       ),
@@ -290,7 +291,7 @@ class LocalParticipant {
     mediaStream?: MediaStream,
     constraints: Pick<MediaStreamConstraints, 'audio'> = { audio: true },
   ) {
-    const mediaStream$ = (() => {
+    const getMediaStream$ = () => {
       if (mediaStream) {
         const existMediaStream = this.getMediaStreamById(mediaStream.id)
         if (existMediaStream) {
@@ -305,9 +306,9 @@ class LocalParticipant {
         return of(existMediaStream)
       }
       return this.addUserMediaStream$(constraints)
-    })()
+    }
 
-    return mediaStream$.pipe(
+    return defer(getMediaStream$).pipe(
       switchMap((ms) =>
         this.setTrackEnabled$(enabled, ms.getAudioTracks(), ms, constraints),
       ),
