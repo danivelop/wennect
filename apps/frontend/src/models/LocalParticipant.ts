@@ -1,4 +1,13 @@
-import { BehaviorSubject, Subject, from, of, merge, fromEvent, iif } from 'rxjs'
+import {
+  BehaviorSubject,
+  Subject,
+  EMPTY,
+  from,
+  of,
+  merge,
+  fromEvent,
+  iif,
+} from 'rxjs'
 import {
   map,
   tap,
@@ -8,6 +17,7 @@ import {
   takeUntil,
   take,
   finalize,
+  catchError,
 } from 'rxjs/operators'
 
 export const MEDIA_STREAM_KIND = {
@@ -194,10 +204,15 @@ class LocalParticipant {
     return mediaStream.getAudioTracks().some((audioTrack) => audioTrack.enabled)
   }
 
-  private getMediaStream(id: string) {
+  private getMediaStreamById(id: string) {
     return this.mediaStreamRecordList$.value.find(
       ({ mediaStream }) => mediaStream.id === id,
     )?.mediaStream
+  }
+
+  private getMediaStreamByKind(kind: MediaStreamKindType) {
+    return this.mediaStreamRecordList$.value.find(({ kind: k }) => k === kind)
+      ?.mediaStream
   }
 
   addUserMediaStreamTrack$(
@@ -234,53 +249,74 @@ class LocalParticipant {
           }
         }
       }),
+      tap(() => {
+        this.enableTrackNotifier$.next(mediaStream)
+      }),
     )
   }
 
   setVideoEnabled$(
     enabled: boolean,
-    mediaStream: MediaStream,
+    mediaStream?: MediaStream,
     constraints: Pick<MediaStreamConstraints, 'video'> = { video: true },
   ) {
-    return of(this.getMediaStream(mediaStream.id)).pipe(
-      filter((ms): ms is MediaStream => !!ms),
+    const mediaStream$ = (() => {
+      if (mediaStream) {
+        const existMediaStream = this.getMediaStreamById(mediaStream.id)
+        if (existMediaStream) {
+          return of(existMediaStream)
+        }
+        return EMPTY
+      }
+
+      const existMediaStream = this.getMediaStreamByKind(MEDIA_STREAM_KIND.USER)
+
+      if (existMediaStream) {
+        return of(existMediaStream)
+      }
+      return this.addUserMediaStream$(constraints)
+    })()
+
+    return mediaStream$.pipe(
       switchMap((ms) =>
-        this.setTrackEnabled$(
-          enabled,
-          ms.getVideoTracks(),
-          mediaStream,
-          constraints,
-        ).pipe(map(() => ms)),
+        this.setTrackEnabled$(enabled, ms.getVideoTracks(), ms, constraints),
       ),
-      tap((ms) => {
-        this.enableTrackNotifier$.next(ms)
-      }),
+      catchError(() => EMPTY),
     )
   }
 
   setAudioEnabled$(
     enabled: boolean,
-    mediaStream: MediaStream,
+    mediaStream?: MediaStream,
     constraints: Pick<MediaStreamConstraints, 'audio'> = { audio: true },
   ) {
-    return of(this.getMediaStream(mediaStream.id)).pipe(
-      filter((ms): ms is MediaStream => !!ms),
+    const mediaStream$ = (() => {
+      if (mediaStream) {
+        const existMediaStream = this.getMediaStreamById(mediaStream.id)
+        if (existMediaStream) {
+          return of(existMediaStream)
+        }
+        return EMPTY
+      }
+
+      const existMediaStream = this.getMediaStreamByKind(MEDIA_STREAM_KIND.USER)
+
+      if (existMediaStream) {
+        return of(existMediaStream)
+      }
+      return this.addUserMediaStream$(constraints)
+    })()
+
+    return mediaStream$.pipe(
       switchMap((ms) =>
-        this.setTrackEnabled$(
-          enabled,
-          ms.getAudioTracks(),
-          mediaStream,
-          constraints,
-        ).pipe(map(() => ms)),
+        this.setTrackEnabled$(enabled, ms.getAudioTracks(), ms, constraints),
       ),
-      tap((ms) => {
-        this.enableTrackNotifier$.next(ms)
-      }),
+      catchError(() => EMPTY),
     )
   }
 
   observeTrackEnabled$(mediaStream: MediaStream) {
-    return of(this.getMediaStream(mediaStream.id)).pipe(
+    return of(this.getMediaStreamById(mediaStream.id)).pipe(
       filter((ms): ms is MediaStream => !!ms),
       switchMap((ms) => merge(of(ms), this.enableTrackNotifier$)),
       filter((ms) => ms.id === mediaStream.id),

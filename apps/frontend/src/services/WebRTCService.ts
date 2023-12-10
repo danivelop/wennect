@@ -7,15 +7,7 @@ import {
   of,
   forkJoin,
 } from 'rxjs'
-import {
-  tap,
-  map,
-  switchMap,
-  finalize,
-  catchError,
-  filter,
-  take,
-} from 'rxjs/operators'
+import { tap, map, switchMap, finalize, filter, take } from 'rxjs/operators'
 import { io } from 'socket.io-client'
 
 import { SOCKET } from '@/constants/Socket'
@@ -69,17 +61,9 @@ class WebRTCService {
       }),
       switchMap((localParticipant) =>
         forkJoin([
-          localParticipant.addUserMediaStream$({ video: true }).pipe(
-            switchMap((mediaStream) =>
-              localParticipant.addUserMediaStreamTrack$(mediaStream, {
-                audio: true,
-              }),
-            ),
-            catchError(() =>
-              localParticipant
-                .addUserMediaStream$({ audio: true })
-                .pipe(catchError(() => of({}))),
-            ),
+          concat(
+            localParticipant.setVideoEnabled$(true),
+            localParticipant.setAudioEnabled$(false),
           ),
         ]).pipe(map(() => localParticipant)),
       ),

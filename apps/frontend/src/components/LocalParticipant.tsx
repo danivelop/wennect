@@ -107,7 +107,7 @@ function LocalVideo() {
   return (
     <Layout>
       {localUserMediaStream && (
-        <Video ref={localUserVideoElementRef} autoPlay playsInline />
+        <Video ref={localUserVideoElementRef} autoPlay playsInline muted />
       )}
       {localDisplayMediaStream && (
         <Video ref={localDisplayVideoElementRef} autoPlay playsInline muted />

@@ -9,14 +9,14 @@ function useTrack(mediaStream?: MediaStream) {
   const localParticipant = useLocalParticipant()
 
   const handleToggleVideo = () => {
-    if (!localParticipant || !mediaStream) {
+    if (!localParticipant) {
       return
     }
     localParticipant.setVideoEnabled$(!isVideoEnabled, mediaStream).subscribe()
   }
 
   const handleToggleAudio = () => {
-    if (!localParticipant || !mediaStream) {
+    if (!localParticipant) {
       return
     }
     localParticipant.setAudioEnabled$(!isAudioEnabled, mediaStream).subscribe()
