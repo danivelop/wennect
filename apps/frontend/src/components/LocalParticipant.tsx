@@ -5,6 +5,7 @@ import WebRTCService from '@/services/WebRTCService'
 
 import useLocalMediaStream from '@/hooks/useLocalMediaStream'
 import useLocalTrack from '@/hooks/useLocalTrack'
+import useRemoteMediaStream from '@/hooks/useRemoteMediaStream'
 
 const Layout = styled.div`
   display: flex;
@@ -57,6 +58,8 @@ function LocalVideo() {
     handleToggleVideo,
     handleToggleAudio,
   } = useLocalTrack(localUserMediaStream)
+
+  const { remoteMediaStreamList } = useRemoteMediaStream()
 
   const handleScreenShare = () => {
     if (localDisplayMediaStream) {
@@ -112,6 +115,21 @@ function LocalVideo() {
       {localDisplayMediaStream && (
         <Video ref={localDisplayVideoElementRef} autoPlay playsInline muted />
       )}
+      {remoteMediaStreamList.map((remoteMediaStream) => {
+        return (
+          <Video
+            key={remoteMediaStream.id}
+            ref={(videoElement) => {
+              if (videoElement) {
+                videoElement.srcObject = remoteMediaStream
+              }
+            }}
+            autoPlay
+            playsInline
+            muted
+          />
+        )
+      })}
       <ControlButtons>
         <ControlButton $enabled={isVideoEnabled} onClick={handleToggleVideo}>
           비디오 toggle

@@ -7,8 +7,6 @@ import { SOCKET } from '@/constants/Socket'
 class SocketService {
   private io: SocketServer
 
-  private participants = new Map<string, Set<string>>()
-
   constructor(server: Server) {
     this.io = new SocketServer(server, {
       cors: {
@@ -19,72 +17,38 @@ class SocketService {
 
   initialize() {
     this.io.on('connection', (socket: Socket) => {
-      this.join(socket)
-      this.leave(socket)
+      SocketService.join(socket)
+      SocketService.leave(socket)
       this.getParticipants(socket)
-      this.participate(socket)
-      this.withdraw(socket)
       this.offer(socket)
       this.answer(socket)
       this.iceCandidate(socket)
     })
   }
 
-  join(socket: Socket) {
+  static join(socket: Socket) {
     socket.on(SOCKET.EVENT.JOIN, (roomId: string) => {
       socket.join(roomId)
       socket.emit(SOCKET.EVENT.JOIN, socket.id)
-      this.participants.set(socket.id, new Set())
+    })
+  }
+
+  static leave(socket: Socket) {
+    socket.on(SOCKET.EVENT.LEAVE, (roomId: string) => {
+      socket.leave(roomId)
+      socket.to(roomId).emit(SOCKET.EVENT.LEAVE, socket.id)
     })
   }
 
   // 임시 로직. 추후에는 rest api로 대체 필요
   getParticipants(socket: Socket) {
     socket.on('participants', () => {
-      socket.emit('participants', Array.from(this.participants.keys()))
-    })
-  }
-
-  leave(socket: Socket) {
-    socket.on(SOCKET.EVENT.LEAVE, (roomId: string) => {
-      socket.leave(roomId)
-      this.participants.delete(socket.id)
-    })
-  }
-
-  participate(socket: Socket) {
-    socket.on(SOCKET.EVENT.PARTICIPATE, (remoteId) => {
-      const sourceParticipants = this.participants.get(socket.id)
-      const targetParticipants = this.participants.get(remoteId)
-
-      if (
-        sourceParticipants &&
-        !sourceParticipants.has(remoteId) &&
-        targetParticipants &&
-        !targetParticipants.has(socket.id)
-      ) {
-        this.io.to(remoteId).emit(SOCKET.EVENT.PARTICIPATE, socket.id)
-        sourceParticipants.add(remoteId)
-        targetParticipants.add(socket.id)
-      }
-    })
-  }
-
-  withdraw(socket: Socket) {
-    socket.on(SOCKET.EVENT.WITHDRAW, (remoteId: string) => {
-      const sourceParticipants = this.participants.get(socket.id)
-      const targetParticipants = this.participants.get(remoteId)
-
-      if (
-        sourceParticipants &&
-        sourceParticipants.has(remoteId) &&
-        targetParticipants &&
-        targetParticipants.has(socket.id)
-      ) {
-        this.io.to(remoteId).emit(SOCKET.EVENT.WITHDRAW, socket.id)
-        sourceParticipants.delete(remoteId)
-        targetParticipants.delete(socket.id)
-      }
+      socket.emit(
+        'participants',
+        Array.from(
+          this.io.sockets.adapter.rooms.get('room1')?.keys() ?? [],
+        ).filter((id) => id !== socket.id),
+      )
     })
   }
 

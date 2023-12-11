@@ -1,5 +1,9 @@
-import { Subscription, BehaviorSubject, from, of, fromEvent } from 'rxjs'
-import { tap, map, filter } from 'rxjs/operators'
+import { Subscription, BehaviorSubject, from, fromEvent, of } from 'rxjs'
+import { tap, filter, switchMap } from 'rxjs/operators'
+
+import { SOCKET } from '@/constants/Socket'
+
+import type { Socket } from 'socket.io-client'
 
 class RemoteParticipant {
   id: string
@@ -8,61 +12,82 @@ class RemoteParticipant {
 
   mediaStreamList$: BehaviorSubject<MediaStream[]>
 
-  subscription: Subscription
+  private subscription: Subscription
 
-  constructor(id: string) {
+  private socket: Socket
+
+  constructor(id: string, socket: Socket) {
     this.id = id
     this.peerConnection = new RTCPeerConnection()
     this.mediaStreamList$ = new BehaviorSubject<MediaStream[]>([])
     this.subscription = new Subscription()
+    this.socket = socket
 
+    this.subscription.add(this.waitCandidate$().subscribe())
+    this.subscription.add(this.handleIceCandidate$().subscribe())
     this.subscription.add(this.handleTrack$().subscribe())
   }
 
-  observeMediaStreamList$() {
-    return this.mediaStreamList$.asObservable()
-  }
-
-  createOffer$() {
+  negotiate$() {
     return from(this.peerConnection.createOffer()).pipe(
       tap((localSessionDescription) => {
         this.peerConnection.setLocalDescription(localSessionDescription)
       }),
+      tap((localSessionDescription) => {
+        this.socket.emit(SOCKET.EVENT.OFFER, this.id, localSessionDescription)
+      }),
+      switchMap(() =>
+        fromEvent<[string, RTCSessionDescriptionInit]>(
+          this.socket,
+          SOCKET.EVENT.ANSWER,
+        ),
+      ),
+      filter(([remoteId]) => remoteId === this.id),
+      tap(([, remoteSessionDescription]) => {
+        this.peerConnection.setRemoteDescription(remoteSessionDescription)
+      }),
     )
   }
 
-  createAnswer$() {
-    return from(this.peerConnection.createAnswer()).pipe(
+  createAnswer$(remoteSessionDescription: RTCSessionDescriptionInit) {
+    return of({}).pipe(
+      tap(() => {
+        this.peerConnection.setRemoteDescription(remoteSessionDescription)
+      }),
+      switchMap(() => from(this.peerConnection.createAnswer())),
       tap((localSessionDescription) => {
         this.peerConnection.setLocalDescription(localSessionDescription)
       }),
-    )
-  }
-
-  receivedRemoteSessionDescription$(
-    remoteSessionDescription: RTCSessionDescriptionInit,
-  ) {
-    return of(remoteSessionDescription).pipe(
-      tap((remoteSDP) => {
-        this.peerConnection.setRemoteDescription(
-          new RTCSessionDescription(remoteSDP),
-        )
+      tap((localSessionDescription) => {
+        this.socket.emit(SOCKET.EVENT.ANSWER, this.id, localSessionDescription)
       }),
     )
   }
 
-  observeIceCandidate$() {
+  waitCandidate$() {
+    return fromEvent<[string, RTCIceCandidate]>(
+      this.socket,
+      SOCKET.EVENT.ICECANDIDATE,
+    ).pipe(
+      filter(([remoteId]) => remoteId === this.id),
+      tap(([, candidate]) => {
+        this.peerConnection.addIceCandidate(candidate)
+      }),
+    )
+  }
+
+  handleIceCandidate$() {
     return fromEvent<RTCPeerConnectionIceEvent>(
       this.peerConnection,
       'icecandidate',
     ).pipe(
-      map((event) => event.candidate),
-      filter((candidate): candidate is RTCIceCandidate => !!candidate),
+      tap((event) => {
+        const { candidate } = event
+        if (candidate) {
+          this.socket.emit(SOCKET.EVENT.ICECANDIDATE, this.id, candidate)
+        }
+      }),
     )
-  }
-
-  addIceCandidate$(iceCandidate: RTCIceCandidateInit) {
-    return from(this.peerConnection.addIceCandidate(iceCandidate))
   }
 
   handleTrack$() {

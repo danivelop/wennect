@@ -34,6 +34,11 @@ interface TMediaStreamRecord {
   mediaStream: MediaStream
 }
 
+interface TTrackRecord {
+  mediaStream: MediaStream
+  track: MediaStreamTrack
+}
+
 interface TTrackNotifier {
   mediaStream: MediaStream
   track: MediaStreamTrack
@@ -44,13 +49,13 @@ class LocalParticipant {
 
   private mediaStreamRecordList$: BehaviorSubject<TMediaStreamRecord[]>
 
-  private trackList$: BehaviorSubject<MediaStreamTrack[]>
+  trackRecordList$: BehaviorSubject<TTrackRecord[]>
 
   private addMediaStreamNotifier$: Subject<TMediaStreamRecord>
 
   private removeMediaStreamNotifier$: Subject<MediaStream>
 
-  private addTrackNotifier$: Subject<TTrackNotifier>
+  addTrackNotifier$: Subject<TTrackNotifier>
 
   private removeTrackNotifier$: Subject<TTrackNotifier>
 
@@ -59,7 +64,7 @@ class LocalParticipant {
   constructor(id: string) {
     this.id = id
     this.mediaStreamRecordList$ = new BehaviorSubject<TMediaStreamRecord[]>([])
-    this.trackList$ = new BehaviorSubject<MediaStreamTrack[]>([])
+    this.trackRecordList$ = new BehaviorSubject<TTrackRecord[]>([])
     this.addMediaStreamNotifier$ = new Subject<TMediaStreamRecord>()
     this.removeMediaStreamNotifier$ = new Subject<MediaStream>()
     this.addTrackNotifier$ = new Subject<TTrackNotifier>()
@@ -89,7 +94,10 @@ class LocalParticipant {
       ),
       this.addTrackNotifier$.pipe(
         tap(({ mediaStream, track }) => {
-          this.trackList$.next([...this.trackList$.value, track])
+          this.trackRecordList$.next([
+            ...this.trackRecordList$.value,
+            { mediaStream, track },
+          ])
           this.enableTrackNotifier$.next(mediaStream)
         }),
         mergeMap(({ mediaStream, track }) =>
@@ -127,8 +135,10 @@ class LocalParticipant {
       this.removeTrackNotifier$.pipe(
         tap(({ mediaStream, track }) => {
           mediaStream.removeTrack(track)
-          this.trackList$.next(
-            this.trackList$.value.filter((t) => t.id !== track.id),
+          this.trackRecordList$.next(
+            this.trackRecordList$.value.filter(
+              ({ track: t }) => t.id !== track.id,
+            ),
           )
         }),
       ),
@@ -338,7 +348,7 @@ class LocalParticipant {
       this.removeMediaStreamNotifier$.next(mediaStream)
     })
     this.mediaStreamRecordList$.complete()
-    this.trackList$.complete()
+    this.trackRecordList$.complete()
     this.addMediaStreamNotifier$.complete()
     this.removeMediaStreamNotifier$.complete()
     this.addTrackNotifier$.complete()
