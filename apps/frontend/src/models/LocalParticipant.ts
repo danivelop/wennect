@@ -41,7 +41,7 @@ interface TTrackRecord {
 
 interface TTrackNotifier {
   mediaStream: MediaStream
-  track: MediaStreamTrack
+  tracks: MediaStreamTrack[]
 }
 
 class LocalParticipant {
@@ -83,37 +83,44 @@ class LocalParticipant {
             mediaStreamRecord,
           ])
         }),
-        switchMap(({ mediaStream }) =>
-          from(mediaStream.getTracks()).pipe(
-            map((track) => ({ mediaStream, track })),
-          ),
-        ),
-        tap(({ mediaStream, track }) => {
-          this.addTrackNotifier$.next({ mediaStream, track })
+        tap(({ mediaStream }) => {
+          this.addTrackNotifier$.next({
+            mediaStream,
+            tracks: mediaStream.getTracks(),
+          })
         }),
       ),
       this.addTrackNotifier$.pipe(
-        tap(({ mediaStream, track }) => {
+        tap(({ mediaStream, tracks }) => {
           this.trackRecordList$.next([
             ...this.trackRecordList$.value,
-            { mediaStream, track },
+            ...tracks.map((track) => ({ mediaStream, track })),
           ])
           this.enableTrackNotifier$.next(mediaStream)
         }),
-        mergeMap(({ mediaStream, track }) =>
-          fromEvent(track, 'ended').pipe(
-            take(1),
-            tap(() => {
-              this.removeTrackNotifier$.next({ mediaStream, track })
-            }),
-            finalize(() => {
-              if (mediaStream.getTracks().length === 0) {
-                this.removeMediaStreamNotifier$.next(mediaStream)
-              }
-            }),
-            takeUntil(
-              this.removeTrackNotifier$.pipe(
-                filter(({ track: t }) => t.id === track.id),
+        mergeMap(({ mediaStream, tracks }) =>
+          from(tracks).pipe(
+            mergeMap((track) =>
+              fromEvent(track, 'ended').pipe(
+                take(1),
+                tap(() => {
+                  this.removeTrackNotifier$.next({
+                    mediaStream,
+                    tracks: [track],
+                  })
+                }),
+                finalize(() => {
+                  if (mediaStream.getTracks().length === 0) {
+                    this.removeMediaStreamNotifier$.next(mediaStream)
+                  }
+                }),
+                takeUntil(
+                  this.removeTrackNotifier$.pipe(
+                    filter(({ tracks: _tracks }) =>
+                      _tracks.map((t) => t.id).includes(track.id),
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
@@ -128,16 +135,21 @@ class LocalParticipant {
           )
           mediaStream.getTracks().forEach((track) => {
             track.stop()
-            this.removeTrackNotifier$.next({ mediaStream, track })
+          })
+          this.removeTrackNotifier$.next({
+            mediaStream,
+            tracks: mediaStream.getTracks(),
           })
         }),
       ),
       this.removeTrackNotifier$.pipe(
-        tap(({ mediaStream, track }) => {
-          mediaStream.removeTrack(track)
+        tap(({ mediaStream, tracks }) => {
+          tracks.forEach((track) => {
+            mediaStream.removeTrack(track)
+          })
           this.trackRecordList$.next(
             this.trackRecordList$.value.filter(
-              ({ track: t }) => t.id !== track.id,
+              ({ track }) => !tracks.map((t) => t.id).includes(track.id),
             ),
           )
         }),
@@ -233,9 +245,9 @@ class LocalParticipant {
     return from(window.navigator.mediaDevices.getUserMedia(constraints)).pipe(
       map((ms) => ms.getTracks()),
       tap((tracks) => {
+        this.addTrackNotifier$.next({ mediaStream, tracks })
         tracks.forEach((track) => {
           mediaStream.addTrack(track)
-          this.addTrackNotifier$.next({ mediaStream, track })
         })
       }),
     )
