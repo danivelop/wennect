@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 
 import WebRTCService from '@/services/WebRTCService'
 
-import type RemoteParticipant from '@/models/RemoteParticipant'
+import type RemoteParticipant from '@/models_legacy/RemoteParticipant'
 
 function useRemoteParticipants() {
   const [remoteParticipants, setRemoteParticipants] = useState<

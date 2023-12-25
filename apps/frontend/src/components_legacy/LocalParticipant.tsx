@@ -3,9 +3,9 @@ import styled from 'styled-components'
 
 import WebRTCService from '@/services/WebRTCService'
 
-import useLocalMediaStream from '@/hooks/useLocalMediaStream'
-import useLocalTrack from '@/hooks/useLocalTrack'
-import useRemoteMediaStream from '@/hooks/useRemoteMediaStream'
+import useLocalMediaStream from '@/hooks_legacy/useLocalMediaStream'
+import useLocalTrack from '@/hooks_legacy/useLocalTrack'
+import useRemoteMediaStream from '@/hooks_legacy/useRemoteMediaStream'
 
 const Layout = styled.div`
   display: flex;

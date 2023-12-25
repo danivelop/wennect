@@ -82,6 +82,8 @@ module.exports = {
     'no-console': 'off',
     '@typescript-eslint/consistent-type-imports': 'error',
     'no-param-reassign': 'off',
+    'no-shadow': 'off',
+    '@typescript-eslint/no-shadow': 'error',
   },
   overrides: [
     {

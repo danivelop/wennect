@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 
 import WebRTCService from '@/services/WebRTCService'
 
-import type LocalParticipant from '@/models/LocalParticipant'
+import type LocalParticipant from '@/models_legacy/LocalParticipant'
 
 function useLocalParticipant() {
   const [localParticipant, setLocalParticipant] =

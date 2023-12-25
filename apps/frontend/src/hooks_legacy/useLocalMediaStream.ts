@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
 import { Subscription } from 'rxjs'
 
-import useLocalParticipant from '@/hooks/useLocalParticipant'
-import { MEDIA_STREAM_KIND } from '@/models/LocalParticipant'
+import useLocalParticipant from '@/hooks_legacy/useLocalParticipant'
+import { MEDIA_STREAM_KIND } from '@/models_legacy/LocalParticipant'
 
 function useLocalMediaStream() {
   const [localUserMediaStreamList, setLocalUserMediaStreamList] = useState<

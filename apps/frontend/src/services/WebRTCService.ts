@@ -21,8 +21,8 @@ import {
 import { io } from 'socket.io-client'
 
 import { SOCKET } from '@/constants/Socket'
-import LocalParticipant from '@/models/LocalParticipant'
-import RemoteParticipant from '@/models/RemoteParticipant'
+import LocalParticipant from '@/models_legacy/LocalParticipant'
+import RemoteParticipant from '@/models_legacy/RemoteParticipant'
 
 import type { Socket } from 'socket.io-client'
 

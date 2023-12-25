@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { merge } from 'rxjs'
 import { map } from 'rxjs/operators'
 
-import useRemoteParticipants from '@/hooks/useRemoteParticipants'
+import useRemoteParticipants from '@/hooks_legacy/useRemoteParticipants'
 
 function useRemoteMediaStream() {
   const [remoteMediaStreamList, setRemoteMediaStreamList] = useState<

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 
-import useLocalParticipant from '@/hooks/useLocalParticipant'
+import useLocalParticipant from '@/hooks_legacy/useLocalParticipant'
 
 function useTrack(mediaStream?: MediaStream) {
   const [isVideoEnabled, setIsVideoEnabled] = useState(false)
