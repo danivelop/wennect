@@ -1,11 +1,10 @@
 import React, { useEffect, useRef } from 'react'
 import styled from 'styled-components'
 
-import WebRTCService from '@/services/WebRTCService'
-
 import useLocalMediaStream from '@/hooks_legacy/useLocalMediaStream'
 import useLocalTrack from '@/hooks_legacy/useLocalTrack'
 import useRemoteMediaStream from '@/hooks_legacy/useRemoteMediaStream'
+import WebRTCService from '@/services_legacy/WebRTCService'
 
 const Layout = styled.div`
   display: flex;

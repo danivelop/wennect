@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 
-import WebRTCService from '@/services/WebRTCService'
+import WebRTCService from '@/services_legacy/WebRTCService'
 
 import type RemoteParticipant from '@/models_legacy/RemoteParticipant'
 
