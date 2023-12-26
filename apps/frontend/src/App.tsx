@@ -1,9 +1,9 @@
 import React from 'react'
 
-import LocalParticipant from '@/components_legacy/LocalParticipant'
+import Room from '@/components/Room'
 
 function App() {
-  return <LocalParticipant />
+  return <Room />
 }
 
 export default App

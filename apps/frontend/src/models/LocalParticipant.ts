@@ -1,9 +1,25 @@
-import { BehaviorSubject, from } from 'rxjs'
-import { tap, map, filter, toArray, switchMap, mergeMap } from 'rxjs/operators'
+import { BehaviorSubject, from, of, EMPTY } from 'rxjs'
+import { tap, map, switchMap, mergeMap, catchError } from 'rxjs/operators'
 
-import MediaStreamRecord, { SOURCE, KIND } from '@/models/MediaStreamRecord'
+import MediaStreamRecord from '@/models/MediaStreamRecord'
 
+import type { Observable } from 'rxjs'
 import type { Socket } from 'socket.io-client'
+
+export enum SOURCE {
+  DISPLAY = 'display',
+  USER = 'user',
+}
+
+export enum KIND {
+  AUDIO = 'audio',
+  VIDEO = 'video',
+}
+
+interface FilterMediaStreamRecordArgs {
+  kind?: KIND
+  source?: SOURCE
+}
 
 class LocalParticipant {
   socket: Socket
@@ -15,25 +31,53 @@ class LocalParticipant {
     this.mediaStreamRecordList = new BehaviorSubject<MediaStreamRecord[]>([])
   }
 
-  getMedaiStreamRecordList$({
-    source,
-    kind,
-  }: { kind?: KIND; source?: SOURCE } = {}) {
-    let mediaStreamRecordList$ = from(this.mediaStreamRecordList.value)
+  static filterMediaStreamRecordList$(
+    mediaStreamRecordList$: Observable<MediaStreamRecord[]>,
+    { source, kind }: FilterMediaStreamRecordArgs,
+  ) {
+    let filterMediaStreamRecordList$ = mediaStreamRecordList$
 
     if (source) {
-      mediaStreamRecordList$ = mediaStreamRecordList$.pipe(
-        filter((mediaStreamRecord) => mediaStreamRecord.source === source),
+      filterMediaStreamRecordList$ = filterMediaStreamRecordList$.pipe(
+        map((mediaStreamRecordList) =>
+          mediaStreamRecordList.filter(
+            (mediaStreamRecord) => mediaStreamRecord.source === source,
+          ),
+        ),
       )
     }
 
     if (kind) {
-      mediaStreamRecordList$ = mediaStreamRecordList$.pipe(
-        filter((mediaStreamRecord) => mediaStreamRecord.hasTrack(kind)),
+      filterMediaStreamRecordList$ = filterMediaStreamRecordList$.pipe(
+        map((mediaStreamRecordList) =>
+          mediaStreamRecordList.filter((mediaStreamRecord) =>
+            mediaStreamRecord.hasTrack(kind),
+          ),
+        ),
       )
     }
 
-    return mediaStreamRecordList$.pipe(toArray())
+    return filterMediaStreamRecordList$
+  }
+
+  observeMediaStreamRecordList$({
+    source,
+    kind,
+  }: FilterMediaStreamRecordArgs = {}) {
+    return LocalParticipant.filterMediaStreamRecordList$(
+      this.mediaStreamRecordList.asObservable(),
+      { source, kind },
+    )
+  }
+
+  getMediaStreamRecordList$({
+    source,
+    kind,
+  }: FilterMediaStreamRecordArgs = {}) {
+    return LocalParticipant.filterMediaStreamRecordList$(
+      of(this.mediaStreamRecordList.value),
+      { source, kind },
+    )
   }
 
   createUserMediaStream$(constraints: MediaStreamConstraints) {
@@ -45,6 +89,7 @@ class LocalParticipant {
           mediaStreamRecord,
         ])
       }),
+      catchError(() => EMPTY),
     )
   }
 
@@ -59,6 +104,7 @@ class LocalParticipant {
           mediaStreamRecord,
         ])
       }),
+      catchError(() => EMPTY),
     )
   }
 
@@ -70,7 +116,7 @@ class LocalParticipant {
     if (mediaStreamRecord) {
       return mediaStreamRecord.setVideoEnabled$(enabled)
     }
-    return this.getMedaiStreamRecordList$({
+    return this.getMediaStreamRecordList$({
       source: SOURCE.USER,
       kind: KIND.VIDEO,
     }).pipe(
@@ -94,7 +140,7 @@ class LocalParticipant {
     if (mediaStreamRecord) {
       return mediaStreamRecord.setAudioEnabled$(enabled)
     }
-    return this.getMedaiStreamRecordList$({
+    return this.getMediaStreamRecordList$({
       source: SOURCE.USER,
       kind: KIND.AUDIO,
     }).pipe(
