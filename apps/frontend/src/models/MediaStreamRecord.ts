@@ -65,6 +65,14 @@ class MediaStreamRecord {
       }),
     )
   }
+
+  clear() {
+    this.mediaStream.getTracks().forEach((track) => {
+      track.stop()
+    })
+    this.videoEnabledNotifier.complete()
+    this.audioEnabledNotifier.complete()
+  }
 }
 
 export default MediaStreamRecord

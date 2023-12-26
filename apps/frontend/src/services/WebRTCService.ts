@@ -1,4 +1,4 @@
-import { BehaviorSubject, of, forkJoin } from 'rxjs'
+import { BehaviorSubject, of, concat, forkJoin } from 'rxjs'
 import { tap, switchMap } from 'rxjs/operators'
 import { io } from 'socket.io-client'
 
@@ -17,20 +17,22 @@ class WebRTCService {
         }),
         switchMap((localParticipant) =>
           forkJoin([
-            localParticipant
-              .createUserMediaStream$({ video: true })
-              .pipe(
-                switchMap((mediaStreamRecord) =>
-                  mediaStreamRecord.setVideoEnabled$(false),
+            concat(
+              localParticipant
+                .createUserMediaStream$({ video: true })
+                .pipe(
+                  switchMap((mediaStreamRecord) =>
+                    mediaStreamRecord.setVideoEnabled$(true),
+                  ),
                 ),
-              ),
-            localParticipant
-              .createUserMediaStream$({ audio: true })
-              .pipe(
-                switchMap((mediaStreamRecord) =>
-                  mediaStreamRecord.setAudioEnabled$(false),
+              localParticipant
+                .createUserMediaStream$({ audio: true })
+                .pipe(
+                  switchMap((mediaStreamRecord) =>
+                    mediaStreamRecord.setAudioEnabled$(true),
+                  ),
                 ),
-              ),
+            ),
           ]),
         ),
       )

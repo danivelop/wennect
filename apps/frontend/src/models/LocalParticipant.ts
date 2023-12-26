@@ -155,6 +155,13 @@ class LocalParticipant {
       ),
     )
   }
+
+  clear() {
+    this.mediaStreamRecordList.value.forEach((mediaStreamRecord) =>
+      mediaStreamRecord.clear(),
+    )
+    this.mediaStreamRecordList.complete()
+  }
 }
 
 export default LocalParticipant
