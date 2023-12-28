@@ -202,6 +202,35 @@ class LocalParticipant {
       }),
     )
   }
+
+  clear() {
+    const userMediaStream = this.userMediaStream$.value
+    const displayMediaStream = this.displayMediaStream$.value
+
+    if (userMediaStream) {
+      userMediaStream.getTracks().forEach((track) => {
+        track.stop()
+        userMediaStream.removeTrack(track)
+      })
+    }
+
+    if (displayMediaStream) {
+      displayMediaStream.getTracks().forEach((track) => {
+        track.stop()
+        displayMediaStream.removeTrack(track)
+      })
+    }
+    this.userMediaStream$.next(null)
+    this.displayMediaStream$.next(null)
+    this.trackEnabledNotifier$.next({ video: false, audio: false })
+
+    this.userMediaStream$.complete()
+    this.displayMediaStream$.complete()
+    this.updateTrackOnMediaStreamNotifier$.complete()
+    this.addTrackNotifier$.complete()
+    this.removeTrackNotifier$.complete()
+    this.trackEnabledNotifier$.complete()
+  }
 }
 
 export default LocalParticipant
