@@ -2,40 +2,31 @@ import { useState, useEffect } from 'react'
 
 import useLocalParticipant from '@/hooks/useLocalParticipant'
 
-import type { SOURCE, KIND } from '@/models/LocalParticipant'
-import type MediaStreamRecord from '@/models/MediaStreamRecord'
-
-interface UseLocalMediaStreamProps {
-  kind?: KIND
-  source?: SOURCE
-}
-
-function useLocalMediaStreamRecord({ source, kind }: UseLocalMediaStreamProps) {
-  const [mediaStreamRecordList, setMediaStreamRecordList] = useState<
-    MediaStreamRecord[]
-  >([])
-  const [isVideoEnabled, setVideoEnabled] = useState(false)
-  const [isAudioEnabled, setAudioEnabled] = useState(false)
+function useLocalMediaStream() {
+  const [userMediaStream, setUserMediaStream] = useState<MediaStream | null>(
+    null,
+  )
+  const [isVideoEnabled, setVideoEnabled] = useState<boolean>(false)
+  const [isAudioEnabled, setAudioEnabled] = useState<boolean>(false)
+  const [displayMediaStream, setDisplayMediaStream] =
+    useState<MediaStream | null>(null)
 
   const localParticipant = useLocalParticipant()
-  const mediaStreamRecord = mediaStreamRecordList[0]
 
   const handleToggleVideo = () => {
     if (!localParticipant) {
       return
     }
-    localParticipant
-      .setVideoEnabled$(!isVideoEnabled, mediaStreamRecord)
-      .subscribe()
+
+    localParticipant.setVideoEnabled$(!isVideoEnabled).subscribe()
   }
 
   const handleToggleAudio = () => {
     if (!localParticipant) {
       return
     }
-    localParticipant
-      .setAudioEnabled$(!isAudioEnabled, mediaStreamRecord)
-      .subscribe()
+
+    localParticipant.setAudioEnabled$(!isAudioEnabled).subscribe()
   }
 
   useEffect(() => {
@@ -43,33 +34,36 @@ function useLocalMediaStreamRecord({ source, kind }: UseLocalMediaStreamProps) {
       return () => {}
     }
 
-    const subscription = localParticipant
-      .observeMediaStreamRecordList$({ source, kind })
-      .subscribe(setMediaStreamRecordList)
+    const userMediaStreamSubscription =
+      localParticipant.userMediaStream$.subscribe(setUserMediaStream)
+    const displayMediaStreamSubscription =
+      localParticipant.displayMediaStream$.subscribe(setDisplayMediaStream)
 
     return () => {
-      subscription.unsubscribe()
+      userMediaStreamSubscription.unsubscribe()
+      displayMediaStreamSubscription.unsubscribe()
     }
-  }, [kind, localParticipant, source])
+  }, [localParticipant])
 
   useEffect(() => {
-    if (!mediaStreamRecord) {
+    if (!localParticipant) {
       return () => {}
     }
 
-    const videoEnabledSubscription =
-      mediaStreamRecord.videoEnabledNotifier.subscribe(setVideoEnabled)
-    const audioEnabledSubscription =
-      mediaStreamRecord.audioEnabledNotifier.subscribe(setAudioEnabled)
+    const trackEnabledSubscription =
+      localParticipant.trackEnabledNotifier$.subscribe(({ video, audio }) => {
+        setVideoEnabled(video)
+        setAudioEnabled(audio)
+      })
 
     return () => {
-      videoEnabledSubscription.unsubscribe()
-      audioEnabledSubscription.unsubscribe()
+      trackEnabledSubscription.unsubscribe()
     }
-  }, [mediaStreamRecord])
+  }, [localParticipant])
 
   return {
-    mediaStreamRecord,
+    userMediaStream,
+    displayMediaStream,
     isVideoEnabled,
     isAudioEnabled,
     handleToggleVideo,
@@ -77,4 +71,4 @@ function useLocalMediaStreamRecord({ source, kind }: UseLocalMediaStreamProps) {
   }
 }
 
-export default useLocalMediaStreamRecord
+export default useLocalMediaStream

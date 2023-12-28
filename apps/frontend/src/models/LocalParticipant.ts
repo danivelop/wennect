@@ -1,166 +1,160 @@
-import { BehaviorSubject, from, of, EMPTY } from 'rxjs'
-import { tap, map, switchMap, mergeMap, catchError } from 'rxjs/operators'
+import { BehaviorSubject, Subject, of, from } from 'rxjs'
+import { tap, map, concatMap, switchMap, toArray } from 'rxjs/operators'
 
-import MediaStreamRecord from '@/models/MediaStreamRecord'
-
-import type { Observable } from 'rxjs'
-import type { Socket } from 'socket.io-client'
-
-export enum SOURCE {
-  DISPLAY = 'display',
-  USER = 'user',
+interface TrackNotifier {
+  mediaStream: MediaStream
+  track: MediaStreamTrack
 }
 
-export enum KIND {
-  AUDIO = 'audio',
-  VIDEO = 'video',
-}
-
-interface FilterMediaStreamRecordArgs {
-  kind?: KIND
-  source?: SOURCE
+interface TEnabledNitifier {
+  audio: boolean
+  video: boolean
 }
 
 class LocalParticipant {
-  socket: Socket
+  /** @description userMediaStream이 생성되었을 때, 제거되었을 때 방출 */
+  userMediaStream$: BehaviorSubject<MediaStream | null>
 
-  mediaStreamRecordList: BehaviorSubject<MediaStreamRecord[]>
+  /** @description displayMediaStream이 생성되었을 때, 제거되었을 때 방출 */
+  displayMediaStream$: BehaviorSubject<MediaStream | null>
 
-  constructor(socket: Socket) {
-    this.socket = socket
-    this.mediaStreamRecordList = new BehaviorSubject<MediaStreamRecord[]>([])
+  /** @description userMediaStream 생성, track 추가, track 제거될 때 모든 track이 업데이트 된 후 방출 */
+  updateTrackOnMediaStreamNotifier$: Subject<MediaStream>
+
+  /** @description userMediaStream에 teack이 추가되었을 때 방출 */
+  addTrackNotifier$: Subject<TrackNotifier>
+
+  /** @description userMediaStream에 teack이 제거되었을 때 방출 */
+  removeTrackNotifier$: Subject<TrackNotifier>
+
+  /** @description userMediaStream의 track중 enabled값이 변경되었을 때 방출 */
+  trackEnabledNotifier$: Subject<TEnabledNitifier>
+
+  constructor() {
+    this.userMediaStream$ = new BehaviorSubject<MediaStream | null>(null)
+    this.displayMediaStream$ = new BehaviorSubject<MediaStream | null>(null)
+    this.updateTrackOnMediaStreamNotifier$ = new Subject<MediaStream>()
+    this.addTrackNotifier$ = new Subject<TrackNotifier>()
+    this.removeTrackNotifier$ = new Subject<TrackNotifier>()
+    this.trackEnabledNotifier$ = new Subject<TEnabledNitifier>()
   }
 
-  static filterMediaStreamRecordList$(
-    mediaStreamRecordList$: Observable<MediaStreamRecord[]>,
-    { source, kind }: FilterMediaStreamRecordArgs,
-  ) {
-    let filterMediaStreamRecordList$ = mediaStreamRecordList$
+  ensureSingleKindTrack$(mediaStream: MediaStream, track: MediaStreamTrack) {
+    return of(mediaStream).pipe(
+      tap((_mediaStream) => {
+        const matchedTrack = _mediaStream
+          .getTracks()
+          .find((t) => t.kind === track.kind)
 
-    if (source) {
-      filterMediaStreamRecordList$ = filterMediaStreamRecordList$.pipe(
-        map((mediaStreamRecordList) =>
-          mediaStreamRecordList.filter(
-            (mediaStreamRecord) => mediaStreamRecord.source === source,
-          ),
-        ),
-      )
-    }
-
-    if (kind) {
-      filterMediaStreamRecordList$ = filterMediaStreamRecordList$.pipe(
-        map((mediaStreamRecordList) =>
-          mediaStreamRecordList.filter((mediaStreamRecord) =>
-            mediaStreamRecord.hasTrack(kind),
-          ),
-        ),
-      )
-    }
-
-    return filterMediaStreamRecordList$
-  }
-
-  observeMediaStreamRecordList$({
-    source,
-    kind,
-  }: FilterMediaStreamRecordArgs = {}) {
-    return LocalParticipant.filterMediaStreamRecordList$(
-      this.mediaStreamRecordList.asObservable(),
-      { source, kind },
-    )
-  }
-
-  getMediaStreamRecordList$({
-    source,
-    kind,
-  }: FilterMediaStreamRecordArgs = {}) {
-    return LocalParticipant.filterMediaStreamRecordList$(
-      of(this.mediaStreamRecordList.value),
-      { source, kind },
-    )
-  }
-
-  createUserMediaStream$(constraints: MediaStreamConstraints) {
-    return from(window.navigator.mediaDevices.getUserMedia(constraints)).pipe(
-      map((mediaStream) => new MediaStreamRecord(mediaStream, SOURCE.USER)),
-      tap((mediaStreamRecord) => {
-        this.mediaStreamRecordList.next([
-          ...this.mediaStreamRecordList.value,
-          mediaStreamRecord,
-        ])
+        if (matchedTrack) {
+          matchedTrack.stop()
+          _mediaStream.removeTrack(matchedTrack)
+          this.removeTrackNotifier$.next({ mediaStream: _mediaStream, track })
+        }
       }),
-      catchError(() => EMPTY),
+      tap((_mediaStream) => {
+        _mediaStream.addTrack(track)
+        this.addTrackNotifier$.next({ mediaStream: _mediaStream, track })
+      }),
+      map(() => track),
     )
   }
 
-  createDisplayMediaStream$(constraints: MediaStreamConstraints) {
-    return from(
-      window.navigator.mediaDevices.getDisplayMedia(constraints),
-    ).pipe(
-      map((mediaStream) => new MediaStreamRecord(mediaStream, SOURCE.DISPLAY)),
-      tap((mediaStreamRecord) => {
-        this.mediaStreamRecordList.next([
-          ...this.mediaStreamRecordList.value,
-          mediaStreamRecord,
-        ])
+  upsertUserMediaStream$(constraintsList: MediaStreamConstraints[]) {
+    return of(this.userMediaStream$.value ?? new MediaStream()).pipe(
+      switchMap((mediaStream) =>
+        from(constraintsList).pipe(
+          concatMap((constraints) =>
+            from(navigator.mediaDevices.getUserMedia(constraints)),
+          ),
+          concatMap((_mediaStream) =>
+            from(_mediaStream.getTracks()).pipe(
+              concatMap((track) =>
+                this.ensureSingleKindTrack$(mediaStream, track),
+              ),
+            ),
+          ),
+          toArray(),
+          map(() => mediaStream),
+        ),
+      ),
+      tap((mediaStream) => {
+        if (!this.userMediaStream$.value) {
+          this.userMediaStream$.next(mediaStream)
+        }
+        this.updateTrackOnMediaStreamNotifier$.next(mediaStream)
       }),
-      catchError(() => EMPTY),
     )
+  }
+
+  private isVideoEnabled() {
+    const userMediaStream = this.userMediaStream$.value
+
+    if (!userMediaStream || userMediaStream.getVideoTracks().length <= 0) {
+      return false
+    }
+    return userMediaStream
+      .getVideoTracks()
+      .some((videoTrack) => videoTrack.enabled)
+  }
+
+  private isAudioEnabled() {
+    const userMediaStream = this.userMediaStream$.value
+
+    if (!userMediaStream || userMediaStream.getAudioTracks().length <= 0) {
+      return false
+    }
+    return userMediaStream
+      .getAudioTracks()
+      .some((audioTrack) => audioTrack.enabled)
   }
 
   setVideoEnabled$(
     enabled: boolean,
-    mediaStreamRecord?: MediaStreamRecord,
     constraints: MediaStreamConstraints = { video: true },
   ) {
-    if (mediaStreamRecord) {
-      return mediaStreamRecord.setVideoEnabled$(enabled)
-    }
-    return this.getMediaStreamRecordList$({
-      source: SOURCE.USER,
-      kind: KIND.VIDEO,
-    }).pipe(
-      switchMap((mediaStreamRecordList) => {
-        if (mediaStreamRecordList.length > 0) {
-          return from(mediaStreamRecordList)
+    return of(this.userMediaStream$.value).pipe(
+      switchMap((mediaStream) => {
+        if (mediaStream && mediaStream.getVideoTracks().length > 0) {
+          return of(mediaStream)
         }
-        return this.createUserMediaStream$(constraints)
+        return this.upsertUserMediaStream$([constraints])
       }),
-      mergeMap((_mediaStreamRecord) =>
-        _mediaStreamRecord.setVideoEnabled$(enabled),
-      ),
+      map((mediaStream) => mediaStream.getVideoTracks()),
+      tap((tracks) => {
+        tracks.forEach((track) => {
+          track.enabled = enabled
+        })
+        this.trackEnabledNotifier$.next({
+          video: this.isVideoEnabled(),
+          audio: this.isAudioEnabled(),
+        })
+      }),
     )
   }
 
   setAudioEnabled$(
     enabled: boolean,
-    mediaStreamRecord?: MediaStreamRecord,
     constraints: MediaStreamConstraints = { audio: true },
   ) {
-    if (mediaStreamRecord) {
-      return mediaStreamRecord.setAudioEnabled$(enabled)
-    }
-    return this.getMediaStreamRecordList$({
-      source: SOURCE.USER,
-      kind: KIND.AUDIO,
-    }).pipe(
-      switchMap((mediaStreamRecordList) => {
-        if (mediaStreamRecordList.length > 0) {
-          return from(mediaStreamRecordList)
+    return of(this.userMediaStream$.value).pipe(
+      switchMap((mediaStream) => {
+        if (mediaStream && mediaStream.getAudioTracks().length > 0) {
+          return of(mediaStream)
         }
-        return this.createUserMediaStream$(constraints)
+        return this.upsertUserMediaStream$([constraints])
       }),
-      mergeMap((_mediaStreamRecord) =>
-        _mediaStreamRecord.setAudioEnabled$(enabled),
-      ),
+      map((mediaStream) => mediaStream.getAudioTracks()),
+      tap((tracks) => {
+        tracks.forEach((track) => {
+          track.enabled = enabled
+        })
+        this.trackEnabledNotifier$.next({
+          video: this.isVideoEnabled(),
+          audio: this.isAudioEnabled(),
+        })
+      }),
     )
-  }
-
-  clear() {
-    this.mediaStreamRecordList.value.forEach((mediaStreamRecord) =>
-      mediaStreamRecord.clear(),
-    )
-    this.mediaStreamRecordList.complete()
   }
 }
 

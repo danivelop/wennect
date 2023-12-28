@@ -1,6 +1,5 @@
-import { BehaviorSubject, of, concat, forkJoin } from 'rxjs'
-import { tap, switchMap } from 'rxjs/operators'
-import { io } from 'socket.io-client'
+import { BehaviorSubject, of, EMPTY, forkJoin } from 'rxjs'
+import { tap, mergeMap, switchMap, catchError } from 'rxjs/operators'
 
 import LocalParticipant from '@/models/LocalParticipant'
 
@@ -8,32 +7,23 @@ class WebRTCService {
   localParticipant$ = new BehaviorSubject<LocalParticipant | null>(null)
 
   enter() {
-    const socket = io('https://localhost:4000')
-
-    return of(new LocalParticipant(socket))
+    return of(new LocalParticipant())
       .pipe(
         tap((localParticipant) => {
           this.localParticipant$.next(localParticipant)
         }),
-        switchMap((localParticipant) =>
-          forkJoin([
-            concat(
-              localParticipant
-                .createUserMediaStream$({ video: true })
-                .pipe(
-                  switchMap((mediaStreamRecord) =>
-                    mediaStreamRecord.setVideoEnabled$(true),
-                  ),
-                ),
-              localParticipant
-                .createUserMediaStream$({ audio: true })
-                .pipe(
-                  switchMap((mediaStreamRecord) =>
-                    mediaStreamRecord.setAudioEnabled$(true),
-                  ),
-                ),
+        mergeMap((localParticipant) =>
+          localParticipant
+            .upsertUserMediaStream$([{ video: true, audio: true }])
+            .pipe(
+              switchMap(() =>
+                forkJoin([
+                  localParticipant.setVideoEnabled$(false),
+                  localParticipant.setAudioEnabled$(false),
+                ]),
+              ),
+              catchError(() => EMPTY),
             ),
-          ]),
         ),
       )
       .subscribe()

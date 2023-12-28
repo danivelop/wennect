@@ -3,8 +3,7 @@ import styled from 'styled-components'
 
 import WebRTCService from '@/services/WebRTCService'
 
-import useLocalMediaStreamRecord from '@/hooks/useLocalMediaStream'
-import { SOURCE, KIND } from '@/models/LocalParticipant'
+import useLocalMediaStream from '@/hooks/useLocalMediaStream'
 
 const Layout = styled.div`
   display: flex;
@@ -39,24 +38,14 @@ const ControlButton = styled.button<{ $enabled: boolean }>`
 
 function Room() {
   const localUserVideoElementRef = useRef<HTMLVideoElement>(null)
-  const localUserAudioElementRef = useRef<HTMLAudioElement>(null)
 
   const {
-    mediaStreamRecord: localUserVideoRecord,
+    userMediaStream,
     isVideoEnabled,
-    handleToggleVideo,
-  } = useLocalMediaStreamRecord({
-    source: SOURCE.USER,
-    kind: KIND.VIDEO,
-  })
-  const {
-    mediaStreamRecord: localUserAudioRecord,
     isAudioEnabled,
+    handleToggleVideo,
     handleToggleAudio,
-  } = useLocalMediaStreamRecord({
-    source: SOURCE.USER,
-    kind: KIND.AUDIO,
-  })
+  } = useLocalMediaStream()
 
   useEffect(() => {
     const subscription = WebRTCService.enter()
@@ -67,12 +56,11 @@ function Room() {
   }, [])
 
   useEffect(() => {
-    if (!localUserVideoElementRef.current || !localUserVideoRecord) {
+    if (!localUserVideoElementRef.current || !userMediaStream) {
       return () => {}
     }
 
-    localUserVideoElementRef.current.srcObject =
-      localUserVideoRecord.mediaStream
+    localUserVideoElementRef.current.srcObject = userMediaStream
 
     return () => {
       if (localUserVideoElementRef.current) {
@@ -80,31 +68,12 @@ function Room() {
         localUserVideoElementRef.current.srcObject = null
       }
     }
-  }, [localUserVideoRecord])
-
-  useEffect(() => {
-    if (!localUserAudioElementRef.current || !localUserAudioRecord) {
-      return () => {}
-    }
-
-    localUserAudioElementRef.current.srcObject =
-      localUserAudioRecord.mediaStream
-
-    return () => {
-      if (localUserAudioElementRef.current) {
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        localUserAudioElementRef.current.srcObject = null
-      }
-    }
-  }, [localUserAudioRecord])
+  }, [userMediaStream])
 
   return (
     <Layout>
-      {localUserVideoRecord && (
+      {userMediaStream && (
         <Video ref={localUserVideoElementRef} autoPlay playsInline />
-      )}
-      {localUserAudioRecord && (
-        <audio ref={localUserAudioElementRef} autoPlay muted />
       )}
       <ControlButtons>
         <ControlButton $enabled={isVideoEnabled} onClick={handleToggleVideo}>
