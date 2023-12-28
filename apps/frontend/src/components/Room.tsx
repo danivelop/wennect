@@ -38,13 +38,16 @@ const ControlButton = styled.button<{ $enabled: boolean }>`
 
 function Room() {
   const localUserVideoElementRef = useRef<HTMLVideoElement>(null)
+  const localDisplayMediaElementRef = useRef<HTMLVideoElement>(null)
 
   const {
     userMediaStream,
+    displayMediaStream,
     isVideoEnabled,
     isAudioEnabled,
     handleToggleVideo,
     handleToggleAudio,
+    handleToggleDisplayMedia,
   } = useLocalMediaStream()
 
   useEffect(() => {
@@ -70,10 +73,28 @@ function Room() {
     }
   }, [userMediaStream])
 
+  useEffect(() => {
+    if (!localDisplayMediaElementRef.current || !displayMediaStream) {
+      return () => {}
+    }
+
+    localDisplayMediaElementRef.current.srcObject = displayMediaStream
+
+    return () => {
+      if (localDisplayMediaElementRef.current) {
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        localDisplayMediaElementRef.current.srcObject = null
+      }
+    }
+  }, [displayMediaStream])
+
   return (
     <Layout>
       {userMediaStream && (
-        <Video ref={localUserVideoElementRef} autoPlay playsInline />
+        <Video ref={localUserVideoElementRef} autoPlay playsInline muted />
+      )}
+      {displayMediaStream && (
+        <Video ref={localDisplayMediaElementRef} autoPlay playsInline muted />
       )}
       <ControlButtons>
         <ControlButton $enabled={isVideoEnabled} onClick={handleToggleVideo}>
@@ -82,12 +103,12 @@ function Room() {
         <ControlButton $enabled={isAudioEnabled} onClick={handleToggleAudio}>
           오디오 toggle
         </ControlButton>
-        {/* <ControlButton
-          $enabled={!!localDisplayMediaStream}
-          onClick={handleScreenShare}
+        <ControlButton
+          $enabled={!!displayMediaStream}
+          onClick={handleToggleDisplayMedia}
         >
           화면공유
-        </ControlButton> */}
+        </ControlButton>
       </ControlButtons>
     </Layout>
   )

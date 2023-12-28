@@ -1,5 +1,15 @@
-import { BehaviorSubject, Subject, of, from } from 'rxjs'
-import { tap, map, concatMap, switchMap, toArray } from 'rxjs/operators'
+import { BehaviorSubject, Subject, of, from, fromEvent, EMPTY } from 'rxjs'
+import {
+  tap,
+  map,
+  concatMap,
+  switchMap,
+  toArray,
+  take,
+  skip,
+  takeUntil,
+  filter,
+} from 'rxjs/operators'
 
 interface TrackNotifier {
   mediaStream: MediaStream
@@ -83,6 +93,42 @@ class LocalParticipant {
           this.userMediaStream$.next(mediaStream)
         }
         this.updateTrackOnMediaStreamNotifier$.next(mediaStream)
+      }),
+    )
+  }
+
+  createDisplayMediaStream$() {
+    if (this.displayMediaStream$.value) {
+      return EMPTY
+    }
+
+    return from(navigator.mediaDevices.getDisplayMedia({ video: true })).pipe(
+      tap((displayMediaStream) => {
+        this.displayMediaStream$.next(displayMediaStream)
+      }),
+      switchMap((displayMediaStream) => from(displayMediaStream.getTracks())),
+      switchMap((track) => fromEvent(track, 'ended').pipe(take(1))),
+      switchMap(() => this.deleteDisplayMediaStream$()),
+      takeUntil(
+        this.displayMediaStream$.pipe(
+          skip(1),
+          filter((displayMediaStream) => displayMediaStream === null),
+        ),
+      ),
+    )
+  }
+
+  deleteDisplayMediaStream$() {
+    return of(this.displayMediaStream$.value).pipe(
+      tap((displayMediaStream) => {
+        if (!displayMediaStream) {
+          return
+        }
+        displayMediaStream.getTracks().forEach((track) => {
+          track.stop()
+          displayMediaStream.removeTrack(track)
+        })
+        this.displayMediaStream$.next(null)
       }),
     )
   }

@@ -29,6 +29,18 @@ function useLocalMediaStream() {
     localParticipant.setAudioEnabled$(!isAudioEnabled).subscribe()
   }
 
+  const handleToggleDisplayMedia = () => {
+    if (!localParticipant) {
+      return
+    }
+
+    if (displayMediaStream) {
+      localParticipant.deleteDisplayMediaStream$().subscribe()
+    } else {
+      localParticipant.createDisplayMediaStream$().subscribe()
+    }
+  }
+
   useEffect(() => {
     if (!localParticipant) {
       return () => {}
@@ -68,6 +80,7 @@ function useLocalMediaStream() {
     isAudioEnabled,
     handleToggleVideo,
     handleToggleAudio,
+    handleToggleDisplayMedia,
   }
 }
 
