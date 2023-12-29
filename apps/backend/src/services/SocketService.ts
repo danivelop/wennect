@@ -17,63 +17,60 @@ class SocketService {
 
   initialize() {
     this.io.on('connection', (socket: Socket) => {
-      SocketService.join(socket)
+      this.join(socket)
       SocketService.leave(socket)
-      this.getParticipants(socket)
       this.offer(socket)
       this.answer(socket)
       this.iceCandidate(socket)
     })
   }
 
-  static join(socket: Socket) {
-    socket.on(SOCKET.EVENT.JOIN, (roomId: string) => {
+  join(socket: Socket) {
+    socket.on(SOCKET.EVENT.ON.JOIN, (roomId: string) => {
+      const participantIds = Array.from(
+        this.io.sockets.adapter.rooms.get(roomId)?.keys() ?? [],
+      )
       socket.join(roomId)
-      socket.emit(SOCKET.EVENT.JOIN, socket.id)
+      socket.emit(SOCKET.EVENT.EMIT.LOCAL_JOIN, socket.id, participantIds)
+      socket.to(roomId).emit(SOCKET.EVENT.EMIT.REMOTE_JOIN, socket.id)
     })
   }
 
   static leave(socket: Socket) {
-    socket.on(SOCKET.EVENT.LEAVE, (roomId: string) => {
+    socket.on(SOCKET.EVENT.ON.LEAVE, (roomId: string) => {
       socket.leave(roomId)
-      socket.to(roomId).emit(SOCKET.EVENT.LEAVE, socket.id)
-    })
-  }
-
-  // 임시 로직. 추후에는 rest api로 대체 필요
-  getParticipants(socket: Socket) {
-    socket.on('participants', () => {
-      socket.emit(
-        'participants',
-        Array.from(
-          this.io.sockets.adapter.rooms.get('room1')?.keys() ?? [],
-        ).filter((id) => id !== socket.id),
-      )
+      socket.to(roomId).emit(SOCKET.EVENT.EMIT.REMOTE_LEAVE, socket.id)
     })
   }
 
   offer(socket: Socket) {
-    socket.on(SOCKET.EVENT.OFFER, (remoteId: string, sessionDescription) => {
+    socket.on(SOCKET.EVENT.ON.OFFER, (remoteId: string, sessionDescription) => {
       this.io
         .to(remoteId)
-        .emit(SOCKET.EVENT.OFFER, socket.id, sessionDescription)
+        .emit(SOCKET.EVENT.EMIT.OFFER, socket.id, sessionDescription)
     })
   }
 
   answer(socket: Socket) {
-    socket.on(SOCKET.EVENT.ANSWER, (remoteId: string, sessionDescription) => {
-      this.io
-        .to(remoteId)
-        .emit(SOCKET.EVENT.ANSWER, socket.id, sessionDescription)
-    })
+    socket.on(
+      SOCKET.EVENT.ON.ANSWER,
+      (remoteId: string, sessionDescription) => {
+        this.io
+          .to(remoteId)
+          .emit(SOCKET.EVENT.EMIT.ANSWER, socket.id, sessionDescription)
+      },
+    )
   }
 
   iceCandidate(socket: Socket) {
-    socket.on(SOCKET.EVENT.ICECANDIDATE, (remoteId: string, icecandidate) => {
-      this.io
-        .to(remoteId)
-        .emit(SOCKET.EVENT.ICECANDIDATE, socket.id, icecandidate)
-    })
+    socket.on(
+      SOCKET.EVENT.ON.ICECANDIDATE,
+      (remoteId: string, icecandidate) => {
+        this.io
+          .to(remoteId)
+          .emit(SOCKET.EVENT.EMIT.ICECANDIDATE, socket.id, icecandidate)
+      },
+    )
   }
 }
 

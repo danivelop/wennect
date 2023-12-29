@@ -11,6 +11,8 @@ import {
   filter,
 } from 'rxjs/operators'
 
+import type { Socket } from 'socket.io-client'
+
 interface TrackNotifier {
   mediaStream: MediaStream
   track: MediaStreamTrack
@@ -22,6 +24,10 @@ interface TEnabledNitifier {
 }
 
 class LocalParticipant {
+  id: string
+
+  socket: Socket
+
   /** @description userMediaStream이 생성되었을 때, 제거되었을 때 방출 */
   userMediaStream$: BehaviorSubject<MediaStream | null>
 
@@ -40,7 +46,9 @@ class LocalParticipant {
   /** @description userMediaStream의 track중 enabled값이 변경되었을 때 방출 */
   trackEnabledNotifier$: Subject<TEnabledNitifier>
 
-  constructor() {
+  constructor(id: string, socket: Socket) {
+    this.id = id
+    this.socket = socket
     this.userMediaStream$ = new BehaviorSubject<MediaStream | null>(null)
     this.displayMediaStream$ = new BehaviorSubject<MediaStream | null>(null)
     this.updateTrackOnMediaStreamNotifier$ = new Subject<MediaStream>()

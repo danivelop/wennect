@@ -1,13 +1,15 @@
 // eslint-disable-next-line import/prefer-default-export
 export const SOCKET = {
   EVENT: {
-    JOIN: 'join',
-    LEAVE: 'leave',
-    PARTICIPATE: 'participate',
-    WITHDRAW: 'withdraw',
-    OFFER: 'offer',
-    ANSWER: 'answer',
-    ICECANDIDATE: 'icecandidate',
+    EMIT: {
+      JOIN: 'join',
+      LEAVE: 'leave',
+    },
+    ON: {
+      LOCAL_JOIN: 'localJoin',
+      REMOTE_JOIN: 'remoteJoin',
+      REMOTE_LEAVE: 'remoteLeave',
+    },
   },
   DISCONNECTION_REASON: {
     TRANSPORT_CLOSE: 'transport close',
