@@ -4,9 +4,9 @@ import type { Socket } from 'socket.io-client'
 class RemoteParticipant {
   id: string
 
-  socket: Socket
+  private socket: Socket
 
-  localParticipant: LocalParticipant
+  private localParticipant: LocalParticipant
 
   constructor(id: string, socket: Socket, localParticipant: LocalParticipant) {
     this.id = id

@@ -26,7 +26,7 @@ interface TEnabledNitifier {
 class LocalParticipant {
   id: string
 
-  socket: Socket
+  private socket: Socket
 
   /** @description userMediaStream이 생성되었을 때, 제거되었을 때 방출 */
   userMediaStream$: BehaviorSubject<MediaStream | null>
