@@ -18,6 +18,27 @@ import RemoteParticipant from '@/models/RemoteParticipant'
 
 import type { Socket } from 'socket.io-client'
 
+/**
+ * @description
+ * remote participant와의 연결과정은 아래와 같은 두가지 개념으로 나눠진다.
+ * 1. room 접속
+ *    - 유저가 room에 접속한 경우 소켓연결, localParticipant를 생성 및 initialize한다.
+ *    - 만약, 기존에 참여하고 있던 참여자가 있다면 remoteParticipant를 생성한다.
+ *    - room에 접속했다고 해서 참여자와 peer connection이 연결되지는 않는다. peer connection은 별도로 명시적으로 수행해야 한다.
+ * 2. peer connection 연결
+ *    - requestConnect함수에 remoteId를 넘김으로써 해당 participant와 peer connection이 수행된다.
+ *    - peer connection을 해제하고 싶은 경우 명시적으로 requestDisconnect함수를 호출해야 한다.
+ *    - peer connection 연결과정에서는 remoteParticipant 객체 자체에는 영향을 주지 않으며 오직 peerConnection과 mediaStream만을 handling한다.
+ *
+ * remoteParticipant는 아래 두가지 경우에 제거가 된다.
+ * 1. 유저가 room을 나갔을 경우 / window beforeunload
+ *    - 소켓을 통해 leave를 emit하며 모든 remoteParticipant를 제거한다.
+ *    - 이 경우 enter함수를 통해 생성된 subscription을 unsubscribe 함으로써 수행하고 있다.
+ * 2. remote participant가 나갔을 경우
+ *    - 이 경우는 상대방 측에서 1번 과정이 실행되었음을 의미한다.
+ *    - 소켓을 통해 leave이벤트가 트리거되며 이때 인자로 받은 remoteId에 해당하는 remoteParticipant를 제거한다.
+ */
+
 class WebRTCService {
   localParticipant$ = new BehaviorSubject<LocalParticipant | null>(null)
 
