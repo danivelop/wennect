@@ -154,6 +154,24 @@ class WebRTCService {
       ),
     )
   }
+
+  private getRemoteParticipant$(remoteId: string) {
+    return from(this.remoteParticipants$.value).pipe(
+      filter((remoteParticipant) => remoteParticipant.id === remoteId),
+    )
+  }
+
+  requestConnect$(remoteId: string) {
+    return this.getRemoteParticipant$(remoteId).pipe(
+      switchMap((remoteParticipant) => remoteParticipant.requestConnect$()),
+    )
+  }
+
+  requestDisconnect$(remoteId: string) {
+    return this.getRemoteParticipant$(remoteId).pipe(
+      switchMap((remoteParticipant) => remoteParticipant.requestDisconnect$()),
+    )
+  }
 }
 
 export default new WebRTCService()

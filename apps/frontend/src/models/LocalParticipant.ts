@@ -28,14 +28,11 @@ class LocalParticipant {
 
   private socket: Socket
 
-  /** @description userMediaStream이 생성되었을 때, 제거되었을 때 방출 */
+  /** @description userMediaStream이 생성, 제거될 때 또는 track 추가, track 제거될 때 모든 track이 업데이트 된 후 방출 방출 */
   userMediaStream$: BehaviorSubject<MediaStream | null>
 
   /** @description displayMediaStream이 생성되었을 때, 제거되었을 때 방출 */
   displayMediaStream$: BehaviorSubject<MediaStream | null>
-
-  /** @description userMediaStream 생성, track 추가, track 제거될 때 모든 track이 업데이트 된 후 방출 */
-  updateTrackOnMediaStreamNotifier$: Subject<MediaStream>
 
   /** @description userMediaStream에 teack이 추가되었을 때 방출 */
   addTrackNotifier$: Subject<TrackNotifier>
@@ -51,7 +48,6 @@ class LocalParticipant {
     this.socket = socket
     this.userMediaStream$ = new BehaviorSubject<MediaStream | null>(null)
     this.displayMediaStream$ = new BehaviorSubject<MediaStream | null>(null)
-    this.updateTrackOnMediaStreamNotifier$ = new Subject<MediaStream>()
     this.addTrackNotifier$ = new Subject<TrackNotifier>()
     this.removeTrackNotifier$ = new Subject<TrackNotifier>()
     this.trackEnabledNotifier$ = new Subject<TEnabledNitifier>()
@@ -97,10 +93,7 @@ class LocalParticipant {
         ),
       ),
       tap((mediaStream) => {
-        if (!this.userMediaStream$.value) {
-          this.userMediaStream$.next(mediaStream)
-        }
-        this.updateTrackOnMediaStreamNotifier$.next(mediaStream)
+        this.userMediaStream$.next(mediaStream)
       }),
     )
   }
@@ -234,7 +227,6 @@ class LocalParticipant {
 
     this.userMediaStream$.complete()
     this.displayMediaStream$.complete()
-    this.updateTrackOnMediaStreamNotifier$.complete()
     this.addTrackNotifier$.complete()
     this.removeTrackNotifier$.complete()
     this.trackEnabledNotifier$.complete()
