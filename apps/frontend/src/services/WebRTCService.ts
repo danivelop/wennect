@@ -2,6 +2,7 @@ import {
   BehaviorSubject,
   of,
   NEVER,
+  EMPTY,
   concat,
   merge,
   fromEvent,
@@ -128,7 +129,7 @@ class WebRTCService {
           }
         }),
       ),
-    )
+    ).pipe(switchMap(() => EMPTY))
   }
 
   initializeLocalParticipant$() {
@@ -147,6 +148,7 @@ class WebRTCService {
             .pipe(switchMap(() => localParticipant.setAudioEnabled$(false))),
         ),
       ),
+      switchMap(() => EMPTY),
     )
   }
 
