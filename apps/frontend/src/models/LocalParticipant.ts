@@ -1,14 +1,21 @@
-import { BehaviorSubject, Subject, of, from, fromEvent, EMPTY } from 'rxjs'
+import {
+  Subscription,
+  BehaviorSubject,
+  Subject,
+  of,
+  from,
+  fromEvent,
+  EMPTY,
+} from 'rxjs'
 import {
   tap,
   map,
-  concatMap,
   switchMap,
-  toArray,
+  mergeMap,
   take,
-  skip,
   takeUntil,
   filter,
+  catchError,
 } from 'rxjs/operators'
 
 import type { Socket } from 'socket.io-client'
@@ -28,20 +35,17 @@ class LocalParticipant {
 
   private socket: Socket
 
-  /** @description userMediaStream이 생성, 제거될 때 또는 track 추가, track 제거될 때 모든 track이 업데이트 된 후 방출 방출 */
   userMediaStream$: BehaviorSubject<MediaStream | null>
 
-  /** @description displayMediaStream이 생성되었을 때, 제거되었을 때 방출 */
   displayMediaStream$: BehaviorSubject<MediaStream | null>
 
-  /** @description userMediaStream에 teack이 추가되었을 때 방출 */
   addTrackNotifier$: Subject<TrackNotifier>
 
-  /** @description userMediaStream에 teack이 제거되었을 때 방출 */
   removeTrackNotifier$: Subject<TrackNotifier>
 
-  /** @description userMediaStream의 track중 enabled값이 변경되었을 때 방출 */
   trackEnabledNotifier$: Subject<TEnabledNitifier>
+
+  subscription: Subscription
 
   constructor(id: string, socket: Socket) {
     this.id = id
@@ -51,87 +55,105 @@ class LocalParticipant {
     this.addTrackNotifier$ = new Subject<TrackNotifier>()
     this.removeTrackNotifier$ = new Subject<TrackNotifier>()
     this.trackEnabledNotifier$ = new Subject<TEnabledNitifier>()
+    this.subscription = new Subscription()
+
+    this.subscription.add(this.handleTrackEnded$().subscribe())
   }
 
-  ensureSingleKindTrack$(mediaStream: MediaStream, track: MediaStreamTrack) {
-    return of(mediaStream).pipe(
-      tap((_mediaStream) => {
-        const matchedTrack = _mediaStream
-          .getTracks()
-          .find((t) => t.kind === track.kind)
+  private handleTrackEnded$() {
+    return this.addTrackNotifier$.pipe(
+      mergeMap(({ mediaStream, track }) =>
+        fromEvent(track, 'ended').pipe(
+          take(1),
+          tap(() => {
+            track.stop()
+            mediaStream.removeTrack(track)
+            this.removeTrackNotifier$.next({ mediaStream, track })
 
-        if (matchedTrack) {
-          matchedTrack.stop()
-          _mediaStream.removeTrack(matchedTrack)
-          this.removeTrackNotifier$.next({ mediaStream: _mediaStream, track })
-        }
-      }),
-      tap((_mediaStream) => {
-        _mediaStream.addTrack(track)
-        this.addTrackNotifier$.next({ mediaStream: _mediaStream, track })
-      }),
-      map(() => track),
-    )
-  }
-
-  upsertUserMediaStream$(constraintsList: MediaStreamConstraints[]) {
-    return of(this.userMediaStream$.value ?? new MediaStream()).pipe(
-      switchMap((mediaStream) =>
-        from(constraintsList).pipe(
-          concatMap((constraints) =>
-            from(navigator.mediaDevices.getUserMedia(constraints)),
-          ),
-          concatMap((_mediaStream) =>
-            from(_mediaStream.getTracks()).pipe(
-              concatMap((track) =>
-                this.ensureSingleKindTrack$(mediaStream, track),
-              ),
+            if (mediaStream.getTracks().length === 0) {
+              this.deleteMediaStream(mediaStream)
+            }
+          }),
+          takeUntil(
+            this.removeTrackNotifier$.pipe(
+              filter(({ track: _track }) => _track === track),
             ),
           ),
-          toArray(),
-          map(() => mediaStream),
         ),
       ),
-      tap((mediaStream) => {
-        this.userMediaStream$.next(mediaStream)
-      }),
     )
   }
 
-  createDisplayMediaStream$() {
-    if (this.displayMediaStream$.value) {
-      return EMPTY
+  private ensureSingleKindTrack(
+    mediaStream: MediaStream,
+    track: MediaStreamTrack,
+  ) {
+    const matchedTrack = mediaStream
+      .getTracks()
+      .find((t) => t.kind === track.kind)
+
+    if (matchedTrack) {
+      matchedTrack.stop()
+      mediaStream.removeTrack(matchedTrack)
+      this.removeTrackNotifier$.next({ mediaStream, track })
     }
+    mediaStream.addTrack(track)
+    this.addTrackNotifier$.next({ mediaStream, track })
+  }
 
-    return from(navigator.mediaDevices.getDisplayMedia({ video: true })).pipe(
-      tap((displayMediaStream) => {
-        this.displayMediaStream$.next(displayMediaStream)
+  upsertUserMediaStream$(constraints: MediaStreamConstraints) {
+    return from(navigator.mediaDevices.getUserMedia(constraints)).pipe(
+      switchMap((mediaStream) => {
+        const currentMediaStream = this.userMediaStream$.value
+        if (!currentMediaStream) {
+          this.userMediaStream$.next(mediaStream)
+          mediaStream.getTracks().forEach((track) => {
+            this.addTrackNotifier$.next({ mediaStream, track })
+          })
+          return of(mediaStream)
+        }
+        mediaStream.getTracks().forEach((track) => {
+          this.ensureSingleKindTrack(currentMediaStream, track)
+        })
+        return of(currentMediaStream)
       }),
-      switchMap((displayMediaStream) => from(displayMediaStream.getTracks())),
-      switchMap((track) => fromEvent(track, 'ended').pipe(take(1))),
-      switchMap(() => this.deleteDisplayMediaStream$()),
-      takeUntil(
-        this.displayMediaStream$.pipe(
-          skip(1),
-          filter((displayMediaStream) => displayMediaStream === null),
-        ),
-      ),
+      catchError(() => EMPTY),
     )
   }
 
-  deleteDisplayMediaStream$() {
-    return of(this.displayMediaStream$.value).pipe(
-      tap((displayMediaStream) => {
-        if (!displayMediaStream) {
-          return
+  upsertDisplayMediaStream$(constraints: MediaStreamConstraints) {
+    return from(navigator.mediaDevices.getDisplayMedia(constraints)).pipe(
+      switchMap((mediaStream) => {
+        const currentMediaStream = this.displayMediaStream$.value
+        if (!currentMediaStream) {
+          this.displayMediaStream$.next(mediaStream)
+          mediaStream.getTracks().forEach((track) => {
+            this.addTrackNotifier$.next({ mediaStream, track })
+          })
+          return of(mediaStream)
         }
-        displayMediaStream.getTracks().forEach((track) => {
-          track.stop()
-          displayMediaStream.removeTrack(track)
+        mediaStream.getTracks().forEach((track) => {
+          this.ensureSingleKindTrack(currentMediaStream, track)
         })
-        this.displayMediaStream$.next(null)
+        return of(currentMediaStream)
       }),
+      catchError(() => EMPTY),
     )
+  }
+
+  deleteMediaStream(mediaStream: MediaStream) {
+    mediaStream.getTracks().forEach((track) => {
+      track.stop()
+      mediaStream.removeTrack(track)
+      this.removeTrackNotifier$.next({ mediaStream, track })
+    })
+
+    if (this.userMediaStream$.value === mediaStream) {
+      this.userMediaStream$.next(null)
+    }
+    if (this.displayMediaStream$.value === mediaStream) {
+      this.displayMediaStream$.next(null)
+    }
   }
 
   private isVideoEnabled() {
@@ -165,7 +187,7 @@ class LocalParticipant {
         if (mediaStream && mediaStream.getVideoTracks().length > 0) {
           return of(mediaStream)
         }
-        return this.upsertUserMediaStream$([constraints])
+        return this.upsertUserMediaStream$(constraints)
       }),
       map((mediaStream) => mediaStream.getVideoTracks()),
       tap((tracks) => {
@@ -189,7 +211,7 @@ class LocalParticipant {
         if (mediaStream && mediaStream.getAudioTracks().length > 0) {
           return of(mediaStream)
         }
-        return this.upsertUserMediaStream$([constraints])
+        return this.upsertUserMediaStream$(constraints)
       }),
       map((mediaStream) => mediaStream.getAudioTracks()),
       tap((tracks) => {
@@ -212,6 +234,7 @@ class LocalParticipant {
       userMediaStream.getTracks().forEach((track) => {
         track.stop()
         userMediaStream.removeTrack(track)
+        this.removeTrackNotifier$.next({ mediaStream: userMediaStream, track })
       })
     }
 
@@ -219,6 +242,10 @@ class LocalParticipant {
       displayMediaStream.getTracks().forEach((track) => {
         track.stop()
         displayMediaStream.removeTrack(track)
+        this.removeTrackNotifier$.next({
+          mediaStream: displayMediaStream,
+          track,
+        })
       })
     }
     this.userMediaStream$.next(null)
@@ -230,6 +257,7 @@ class LocalParticipant {
     this.addTrackNotifier$.complete()
     this.removeTrackNotifier$.complete()
     this.trackEnabledNotifier$.complete()
+    this.subscription.unsubscribe()
   }
 }
 

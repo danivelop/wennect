@@ -1,15 +1,13 @@
 import {
   BehaviorSubject,
   of,
-  EMPTY,
   NEVER,
-  forkJoin,
   concat,
   merge,
   fromEvent,
   from,
 } from 'rxjs'
-import { tap, switchMap, catchError, filter, finalize } from 'rxjs/operators'
+import { tap, switchMap, filter, finalize } from 'rxjs/operators'
 import { io } from 'socket.io-client'
 
 import { SOCKET } from '@/constants/Socket'
@@ -140,17 +138,14 @@ class WebRTCService {
           !!localParticipant,
       ),
       switchMap((localParticipant) =>
-        localParticipant
-          .upsertUserMediaStream$([{ video: true, audio: true }])
-          .pipe(
-            switchMap(() =>
-              forkJoin([
-                localParticipant.setVideoEnabled$(false),
-                localParticipant.setAudioEnabled$(false),
-              ]),
-            ),
-            catchError(() => EMPTY),
-          ),
+        concat(
+          localParticipant
+            .upsertUserMediaStream$({ video: true })
+            .pipe(switchMap(() => localParticipant.setVideoEnabled$(false))),
+          localParticipant
+            .upsertUserMediaStream$({ audio: true })
+            .pipe(switchMap(() => localParticipant.setAudioEnabled$(false))),
+        ),
       ),
     )
   }

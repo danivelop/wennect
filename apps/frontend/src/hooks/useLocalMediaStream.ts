@@ -35,9 +35,9 @@ function useLocalMediaStream() {
     }
 
     if (displayMediaStream) {
-      localParticipant.deleteDisplayMediaStream$().subscribe()
+      localParticipant.deleteMediaStream(displayMediaStream)
     } else {
-      localParticipant.createDisplayMediaStream$().subscribe()
+      localParticipant.upsertDisplayMediaStream$({ video: true }).subscribe()
     }
   }
 
