@@ -4,11 +4,17 @@ export const SOCKET = {
     EMIT: {
       JOIN: 'join',
       LEAVE: 'leave',
+      OFFER: 'offer',
+      ANSWER: 'answer',
+      ICECANDIDATE: 'icecandidate',
     },
     ON: {
       LOCAL_JOIN: 'localJoin',
       REMOTE_JOIN: 'remoteJoin',
       REMOTE_LEAVE: 'remoteLeave',
+      OFFER: 'offer',
+      ANSWER: 'answer',
+      ICECANDIDATE: 'icecandidate',
     },
   },
   DISCONNECTION_REASON: {

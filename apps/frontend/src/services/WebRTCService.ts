@@ -8,7 +8,7 @@ import {
   fromEvent,
   from,
 } from 'rxjs'
-import { tap, switchMap, filter, finalize } from 'rxjs/operators'
+import { tap, switchMap, filter, finalize, map } from 'rxjs/operators'
 import { io } from 'socket.io-client'
 
 import { SOCKET } from '@/constants/Socket'
@@ -99,15 +99,38 @@ class WebRTCService {
             }),
             switchMap((localParticipant) =>
               merge(
-                from(remoteIds),
-                fromEvent<string>(socket, SOCKET.EVENT.ON.REMOTE_JOIN),
+                from(remoteIds).pipe(
+                  map(
+                    (remoteId) =>
+                      new RemoteParticipant(
+                        remoteId,
+                        socket,
+                        localParticipant,
+                        true,
+                      ),
+                  ),
+                ),
+                fromEvent<string>(socket, SOCKET.EVENT.ON.REMOTE_JOIN).pipe(
+                  map(
+                    (remoteId) =>
+                      new RemoteParticipant(
+                        remoteId,
+                        socket,
+                        localParticipant,
+                        false,
+                      ),
+                  ),
+                ),
               ).pipe(
-                tap((remoteId) => {
+                tap((remoteParticipant) => {
                   this.remoteParticipants$.next([
                     ...this.remoteParticipants$.value,
-                    new RemoteParticipant(remoteId, socket, localParticipant),
+                    remoteParticipant,
                   ])
                 }),
+                switchMap((remoteParticipant) =>
+                  this.requestNegitiation$(remoteParticipant.id),
+                ),
               ),
             ),
           ),
@@ -158,15 +181,9 @@ class WebRTCService {
     )
   }
 
-  requestConnect$(remoteId: string) {
+  requestNegitiation$(remoteId: string) {
     return this.getRemoteParticipant$(remoteId).pipe(
-      switchMap((remoteParticipant) => remoteParticipant.requestConnect$()),
-    )
-  }
-
-  requestDisconnect$(remoteId: string) {
-    return this.getRemoteParticipant$(remoteId).pipe(
-      switchMap((remoteParticipant) => remoteParticipant.requestDisconnect$()),
+      switchMap((remoteParticipant) => remoteParticipant.requestNegitiation$()),
     )
   }
 }
