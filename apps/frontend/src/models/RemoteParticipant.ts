@@ -70,7 +70,7 @@ class RemoteParticipant {
     this.ignoreOffer = false
     this.subscription = new Subscription()
 
-    this.subscription.add(this.receivedNegitiation$().subscribe())
+    this.subscription.add(this.receivedNegotiation$().subscribe())
   }
 
   private upsertPeerConnection$() {
@@ -84,7 +84,7 @@ class RemoteParticipant {
       }),
       switchMap((peerConnection) =>
         merge(
-          this.handleNegitiate$(),
+          this.handleNegotiate$(),
           this.handleAnswer$(),
           this.handleSyncLocalTrack$(),
           this.handleSyncRemoteTrack$(),
@@ -94,7 +94,7 @@ class RemoteParticipant {
     )
   }
 
-  receivedNegitiation$() {
+  receivedNegotiation$() {
     return fromEvent<[string, RTCSessionDescriptionInit]>(
       this.socket,
       SOCKET.EVENT.ON.OFFER,
@@ -127,11 +127,11 @@ class RemoteParticipant {
     )
   }
 
-  requestNegitiation$() {
+  requestNegotiation$() {
     return this.upsertPeerConnection$()
   }
 
-  private handleNegitiate$() {
+  private handleNegotiate$() {
     return of(this.peerConnection).pipe(
       filter(
         (peerConnection): peerConnection is RTCPeerConnection =>

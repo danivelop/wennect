@@ -129,7 +129,7 @@ class WebRTCService {
                   ])
                 }),
                 switchMap((remoteParticipant) =>
-                  this.requestNegitiation$(remoteParticipant.id),
+                  this.requestNegotiation$(remoteParticipant.id),
                 ),
               ),
             ),
@@ -181,9 +181,9 @@ class WebRTCService {
     )
   }
 
-  requestNegitiation$(remoteId: string) {
+  requestNegotiation$(remoteId: string) {
     return this.getRemoteParticipant$(remoteId).pipe(
-      switchMap((remoteParticipant) => remoteParticipant.requestNegitiation$()),
+      switchMap((remoteParticipant) => remoteParticipant.requestNegotiation$()),
     )
   }
 }
