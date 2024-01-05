@@ -1,6 +1,7 @@
 import {
   Subscription,
   BehaviorSubject,
+  Subject,
   of,
   merge,
   fromEvent,
@@ -17,6 +18,7 @@ import {
   take,
   finalize,
   catchError,
+  takeUntil,
 } from 'rxjs/operators'
 
 import { SOCKET } from '@/constants/Socket'
@@ -53,6 +55,8 @@ class RemoteParticipant {
 
   subscription: Subscription
 
+  requestWithdraw$: Subject<void>
+
   constructor(
     id: string,
     socket: Socket,
@@ -69,6 +73,7 @@ class RemoteParticipant {
     this.makingOffer = false
     this.ignoreOffer = false
     this.subscription = new Subscription()
+    this.requestWithdraw$ = new Subject()
 
     this.subscription.add(this.receivedNegotiation$().subscribe())
   }
@@ -91,6 +96,7 @@ class RemoteParticipant {
           this.handleSyncIceCandidate$(),
         ).pipe(map(() => peerConnection)),
       ),
+      takeUntil(this.requestWithdraw$),
     )
   }
 
@@ -129,6 +135,25 @@ class RemoteParticipant {
 
   requestNegotiation$() {
     return this.upsertPeerConnection$()
+  }
+
+  requestWithdraw() {
+    this.requestWithdraw$.next()
+
+    if (this.userMediaStream$.value) {
+      this.deleteMediaStream(this.userMediaStream$.value)
+    }
+    if (this.displayMediaStream$.value) {
+      this.deleteMediaStream(this.displayMediaStream$.value)
+    }
+    if (this.peerConnection) {
+      this.peerConnection.getSenders().forEach((sender) => {
+        this.peerConnection?.removeTrack(sender)
+      })
+      this.peerConnection.close()
+    }
+    this.makingOffer = false
+    this.ignoreOffer = false
   }
 
   private handleNegotiate$() {
@@ -325,8 +350,10 @@ class RemoteParticipant {
     }
   }
 
-  // eslint-disable-next-line class-methods-use-this
-  clear() {}
+  clear() {
+    this.requestWithdraw()
+    this.subscription.unsubscribe()
+  }
 }
 
 export default RemoteParticipant
